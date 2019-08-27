@@ -1,18 +1,30 @@
+#Requires -Module pester -Version 4.8.1
 . .\Import-EnvironmentSettings.ps1
 . .\Get-KeePassPassword.ps1
+. .\Write-MyException.ps1
+. .\Test-AdCredential.ps1
 
-$SqlInstance = 'DBASQL1'
 $Version = 2017
-$Features = @('ENGINE','FULLTEXT')
+$SqlInstance = 'DBASQL1'
+$Features = @('ENGINE')
 $ServiceAccount = "SA-DSCSQL"
-
 $password = Get-KeePassPassword -UserName $ServiceAccount -MasterKey $MasterKey -DatabaseProfileName $DatabaseProfileName -pKeePassEntryGroupPath $KeePassEntryGroupPath 
 $svcPassword = ConvertTo-SecureString -String $password -AsPlainText -Force
-$EngineCredential = $AgentCredential = New-Object System.Management.Automation.PSCredential("$ActiveDirectoryDomain\$ServiceAccount", $svcPassword)
+$EngineCredential = $AgentCredential = New-Object System.Management.Automation.PSCredential("$ActiveDirectoryDomain\$ServiceAccount", $svcPassword)    
 
-#TODO: Test AD Credential
+$result = Invoke-Pester -Script @{ 
+    Path = '.\Test-PreInstallationChecks.ps1' ; 
+    Parameters = @{
+        SqlInstance = $SqlInstance;  
+        EngineCredential = $EngineCredential; 
+        InstallationCredential = $InstallationCredential; 
+        InstallationSource =  $InstallationSources[$Version];
+    }
+}  -PassThru
 
-Write-Output "SQL Server: $SqlInstance Service Account: $ServiceAccount Password: $password"
+if ( $result.FailedCount -gt 0 ){
+    Write-Error "Preflight checks failed please ensure pester test passes" -ErrorAction Stop
+}
 
 Install-DbaInstance `
     -SqlInstance $SqlInstance `
@@ -29,4 +41,7 @@ Install-DbaInstance `
     -AgentCredential $AgentCredential `
     -Credential $InstallationCredential `
     -Configuration @{ UpdateSource = $UpdateSources[$Version] } `
-    -PerformVolumeMaintenanceTasks -Restart -Confirm:$false -Verbose
+    -PerformVolumeMaintenanceTasks `
+    -Restart `
+    -Confirm:$false `
+    -Verbose
