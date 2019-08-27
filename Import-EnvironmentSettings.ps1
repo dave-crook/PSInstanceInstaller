@@ -19,7 +19,7 @@ $ActiveDirectoryDomain = "LAB"
 
 #MSX and CMS
 $SQLManagementServer = "SQL-MGMT"
-$CMDBServer = 'DCP-VSQL-01'
+$CMDBServer = 'SQL-MGMT'
 
 #The SQL Service account will be added to this group. This group is used for access to the CMS and MSX.
 $SqlServiceGroup = "SQL Server Service Accounts"
@@ -33,6 +33,7 @@ $AdminAccount = "$ActiveDirectoryDomain\Database Engineers"
 #Additional groups to be added to syadmins and local administrators
 $SQLManagement = "$ActiveDirectoryDomain\SQL Management"
 
+$NumberOfPhysicalCoresPerCPU = 6
 
 #Location of installation files for each version of SQL Server. Each of these is currently the latest SP we've standardized on.
 $InstallRoot = "\\Dc1\share\INSTALLS"

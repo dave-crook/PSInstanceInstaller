@@ -73,7 +73,7 @@ function Register-Msx{
         Invoke-DbaQuery -SqlInstance $MSXFQDN -Database "DBA" -Query "EXEC DBA.dbo.CreateTargetSQLAgentJobs @TargetServer= '$TargetServer' " 
     }
     catch {
-        Write-MyException $_.Exception.Message
+        Write-Error $_.Exception.Message
     }
 }
 <#

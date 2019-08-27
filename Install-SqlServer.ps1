@@ -1,11 +1,15 @@
 #Requires -Modules @{ ModuleName="pester"; ModuleVersion="4.8.1" }
 #Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.23" }
-
-<#Requires -RunAsAdministrator#>
+#Requires -RunAsAdministrator
 
 . .\Import-EnvironmentSettings.ps1
 . .\Get-KeePassPassword.ps1
 . .\Test-AdCredential.ps1
+. .\Invoke-SqlConfigure.ps1
+. .\Register-Msx.ps1
+. .\Install-SqlCertificate.ps1
+. .\Test-ServiceAccountToGroup.ps1
+. .\Set-ServiceAccountToGroup.ps1
 
 $Version = 2017
 $SqlInstance = 'DBASQL1'
@@ -15,7 +19,7 @@ $password = Get-KeePassPassword -UserName $ServiceAccount -MasterKey $MasterKey 
 $svcPassword = ConvertTo-SecureString -String $password -AsPlainText -Force
 $EngineCredential = $AgentCredential = New-Object System.Management.Automation.PSCredential("$ActiveDirectoryDomain\$ServiceAccount", $svcPassword)    
 
-$result = Invoke-Pester -Script @{ 
+$PreflightChecksResult = Invoke-Pester -Script @{ 
     Path = '.\Test-PreInstallationChecks.ps1' ; 
     Parameters = @{
         SqlInstance = $SqlInstance;  
@@ -26,11 +30,11 @@ $result = Invoke-Pester -Script @{
     }
 }  -PassThru
 
-if ( $result.FailedCount -gt 0 ){
-    Write-Error "Preflight checks failed please ensure pester test passes" -ErrorAction Stop
+if ( $PreflightChecksResult.FailedCount -gt 0 ){
+    Write-Output "FAILED: Preflight checks failed please ensure pester test passes" -ErrorAction Stop
 }
 
-Install-DbaInstance `
+$InstallationResult = Install-DbaInstance `
     -SqlInstance $SqlInstance `
     -Path $InstallationSources[$Version] `
     -Version $Version `
@@ -48,6 +52,14 @@ Install-DbaInstance `
     -PerformVolumeMaintenanceTasks `
     -Restart `
     -Confirm:$false `
-    -Verbose
+    -Verbose 
 
-Invoke-Pester -Script @{ Path = '.\Test-PostInstallationChecks.ps1' ; Parameters = @{ Server = $SqlInstance; } }
+$InstallationResult
+
+if ( -Not ($InstallationResult.Successful )){
+    Write-Output "FAILED: Installation on $SqlInstance failed. Examine the installation log at $($InstallationResult.LogFile) on the target server." -ErrorAction Stop
+}
+    
+Invoke-Pester -Script @{ Path = '.\Test-PostInstallationChecks.ps1' ; Parameters = @{ SqlInstance = $SqlInstance; } }
+Invoke-SqlConfigure -SqlInstance $SqlInstance
+ 
