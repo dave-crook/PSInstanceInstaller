@@ -1,7 +1,10 @@
-#Requires -Module pester -Version 4.8.1
+#Requires -Modules @{ ModuleName="pester"; ModuleVersion="4.8.1" }
+#Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.23" }
+
+<#Requires -RunAsAdministrator#>
+
 . .\Import-EnvironmentSettings.ps1
 . .\Get-KeePassPassword.ps1
-. .\Write-MyException.ps1
 . .\Test-AdCredential.ps1
 
 $Version = 2017
@@ -19,6 +22,7 @@ $result = Invoke-Pester -Script @{
         EngineCredential = $EngineCredential; 
         InstallationCredential = $InstallationCredential; 
         InstallationSource =  $InstallationSources[$Version];
+        UpdateSource =  $UpdateSources[$Version];
     }
 }  -PassThru
 
@@ -45,3 +49,5 @@ Install-DbaInstance `
     -Restart `
     -Confirm:$false `
     -Verbose
+
+Invoke-Pester -Script @{ Path = '.\Test-PostInstallationChecks.ps1' ; Parameters = @{ Server = $SqlInstance; } }

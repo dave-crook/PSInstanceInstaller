@@ -3,11 +3,12 @@ Param(
     [Parameter(Mandatory = $true)] [String] $SqlInstance,
     [Parameter(Mandatory = $true)] [PSCredential] $EngineCredential,
     [Parameter(Mandatory = $true)] [PSCredential] $InstallationCredential,
-    [Parameter(Mandatory = $true)] [String] $InstallationSource
+    [Parameter(Mandatory = $true)] [String] $InstallationSource,
+    [Parameter(Mandatory = $true)] [String] $UpdateSource
 )
 {
     if ( -Not (Test-NetConnection -ComputerName $ServerName -InformationLevel Quiet -CommonTCPPort WINRM) ) {
-        Write-MyException "Cannot Reach $ServerName ensure that the system is online or the firewall is not blocking access to WinRM. Script exiting."
+        Write-Error "Cannot Reach $ServerName ensure that the system is online or the firewall is not blocking access to WinRM. Script exiting." -ErrorAction Stop
         exit
     }
 }
@@ -44,5 +45,13 @@ Describe "Pre-Installation Checks" {
             $result | Should -BeTrue -Because "The installation share must exist"
         }
     }
+
+    Context "Testing for existance of the Update Sources share" {
+        $result = Test-Path -Path $UpdateSource
+        It "Testing to see if the Update Sources share exists $UpdateSource" {
+            $result | Should -BeTrue -Because "The Update Sources share must exist"
+        }
+    }
+
 }
   

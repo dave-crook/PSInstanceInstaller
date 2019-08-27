@@ -11,7 +11,6 @@ $LogPath = 'L:\LOGS'
 $TempPath = 'T:\TEMPDB'
 $BackupPath = 'S:\BACKUPS'
 
-
 #Log file 
 $logfile = "output.log"
 
@@ -20,6 +19,7 @@ $ActiveDirectoryDomain = "LAB"
 
 #MSX and CMS
 $SQLManagementServer = "SQL-MGMT"
+$CMDBServer = 'DCP-VSQL-01'
 
 #The SQL Service account will be added to this group. This group is used for access to the CMS and MSX.
 $SqlServiceGroup = "SQL Server Service Accounts"
@@ -32,8 +32,6 @@ $AdminAccount = "$ActiveDirectoryDomain\Database Engineers"
 
 #Additional groups to be added to syadmins and local administrators
 $SQLManagement = "$ActiveDirectoryDomain\SQL Management"
-
-
 
 
 #Location of installation files for each version of SQL Server. Each of these is currently the latest SP we've standardized on.
