@@ -35,16 +35,16 @@ Describe "Management Services" {
         }
     }  
     Context "$SqlInstance`: Registered in CMS, but only if we're not the CMS." {
-        $registeredServer = (Get-DbaCmsRegServer -SqlInstance $CMDBServer -Name $server).ServerName
+        $registeredServer = (Get-DbaRegisteredServer -SqlInstance $CMDBServer -Name $SqlInstance).ServerName
         It "$SqlInstance`: Test to see if instance is registered in the CMS" {
-            #Using a BeLike which should get us around shortname vs. FQDNs in the $server and $registeredServer variables
-            $registeredServer | Should -BeLike "$server*" -Because "We really want to have all of the servers registered in the CMS "
+            #Using a BeLike which should get us around shortname vs. FQDNs in the $SqlInstance and $registeredServer variables
+            $registeredServer | Should -BeLike "$SqlInstance*" -Because "We really want to have all of the servers registered in the CMS "
         }  
     }
 
     Context "$SqlInstance`: Registered in SentryOne" {
         Import-Module "C:\Program Files\SentryOne\19.0\Intercerve.SQLSentry.Powershell.psd1"
-        $instance = Get-Connection | Where-Object { $_.ServerName -like "$server*" }
+        $instance = Get-Connection | Where-Object { $_.ServerName -like "$SqlInstance*" }
         It "$SqlInstance`: Check to see if SQL Instance is registered in SentryOne and watched by Performance Advisor" {
             $instance.WatchedBy | Should -BeLike "*PerformanceAdvisor*"
         }
@@ -60,7 +60,7 @@ Describe "SQL Agent Configuration" {
         }
     } 
     Context "$SqlInstance`: SqlAgent Opertor" {
-        @(Get-DbaAgentOperator -SqlInstance $server -Operator Alerts).ForEach{
+        @(Get-DbaAgentOperator -SqlInstance $SqlInstance -Operator Alerts).ForEach{
             It 'Testing for an Operator named Alerts' {
                 $PSItem.Name | Should -Be "Alerts" -Because "There should be an operator named Alerts"
             }
@@ -70,7 +70,7 @@ Describe "SQL Agent Configuration" {
         }  
     }
     Context "$SqlInstance`: Agent History Retention" {
-        @(Get-DbaAgentServer -SqlInstance $server).ForEach{
+        @(Get-DbaAgentServer -SqlInstance $SqlInstance).ForEach{
             It "$SqlInstance`: Should have a job history length set to 1000 per job" {
                 $psitem.MaximumJobHistoryRows | Should -BeGreaterOrEqual 1000 -Because "We want to keep a large body of job history around per job."
             }
@@ -80,7 +80,7 @@ Describe "SQL Agent Configuration" {
         }  
     }
     Context "$SqlInstance`: Testing for the existence of required SQL Agent Alerts" {
-        $alerts = (Get-DbaAgentAlert -SqlInstance $server | Where-Object { $_.IsEnabled -eq $true } )
+        $alerts = (Get-DbaAgentAlert -SqlInstance "$SqlInstance\$InstanceName" | Where-Object { $_.IsEnabled -eq $true } )
 
         It "Should have an Agent Alert for Error 18456: Failed Login" {
             ($alerts.MessageID | Where-Object { $_ -eq '18456' }) | Should -Be '18456'
@@ -159,7 +159,7 @@ Describe "SQL Agent Configuration" {
         }        
     }
     Context "$SqlInstance`: Failsafe Operator Configuration" {
-        $AgentConfiguration = Get-DbaAgentServer -Sqlinstance $server 
+        $AgentConfiguration = Get-DbaAgentServer -Sqlinstance "$SqlInstance\$InstanceName"
         $fso = $AgentConfiguration | Select-Object AlertSystem -ExpandProperty AlertSystem
         It "Should have a Failsafe Operator named Alerts" {
             $fso.FailSafeOperator | Should -Be "Alerts"
@@ -171,7 +171,7 @@ Describe "SQL Agent Configuration" {
             $AgentConfiguration.AgentMailType | Should -Be "DatabaseMail"
         }
         It "Should have a DatabaseMail Profile" {
-            $AgentConfiguration.DatabaseMailProfile | Should -Be "Alerts"
+            $AgentConfiguration.DatabaseMailProfile | Should -Be "Default"
         }
     }
 }
@@ -179,8 +179,8 @@ Describe "SQL Agent Configuration" {
 Describe "Ola Hallengren SP and Job Configuration" {
     Context "$SqlInstance`: Test to see if Ola Hallengrens Maintenance Solution and if sp_whoisactive is installed" {
         #Do not use this, brutally slow.
-        #$storedprocedures = (Get-DbaDbStoredProcedure -SqlInstance $server -Database 'master' -ExcludeSystemSp).Name
-        $storedprocedures = (Get-DbaModule -SqlInstance $server -Database 'master' -ExcludeSystemObjects | Where-Object { $_.Type -eq 'SQL_STORED_PROCEDURE' } ).Name
+        #$storedprocedures = (Get-DbaDbStoredProcedure -SqlInstance $SqlInstance -Database 'master' -ExcludeSystemSp).Name
+        $storedprocedures = (Get-DbaModule -SqlInstance $SqlInstance -Database 'master' -ExcludeSystemObjects | Where-Object { $_.Type -eq 'SQL_STORED_PROCEDURE' } ).Name
 
         It 'Testing for DatabaseBackup' {
             $storedprocedures | Should -Contain "DatabaseBackup" -Because "We want this script on all systems"
@@ -199,7 +199,7 @@ Describe "Ola Hallengren SP and Job Configuration" {
         }
     }
     Context "$SqlInstance`: Test to see if maintenance jobs are on the local instance" {
-        $jobs = Get-DbaAgentJob -SqlInstance $server | Where-Object { $_.Enabled -eq $true }
+        $jobs = Get-DbaAgentJob -SqlInstance $SqlInstance | Where-Object { $_.Enabled -eq $true }
         It 'Should have a CommandLog Cleanup job' {
             ($jobs.Name | Where-Object { $_ -like "*CommandLog Cleanup" }) | Should -BeLike "*CommandLog Cleanup" 
         }
@@ -216,24 +216,6 @@ Describe "Ola Hallengren SP and Job Configuration" {
             ($jobs.Name | Where-Object { $_ -like "*IndexOptimize - ALL_DATABASES" }) | Should -BeLike "*IndexOptimize - ALL_DATABASES"           
         }
     }
-    Context "$SqlInstance`: Test to see if maintenance jobs have run recently" {
-        It 'Should have successfully run a CommandLog Cleanup job in the last week' {
-            ($jobs | Where-Object { $_.Name -like "*CommandLog Cleanup" -and $_.LastRunOutcome -eq 'Succeeded' }).LastRunDate | Should -BeGreaterOrEqual (Get-Date).AddDays(-7)
-        }
-
-        It 'Should have successfully run a Cycle SQL Error Log in the last 24 hours' {
-            ($jobs | Where-Object { $_.Name -like "*Cycle SQL Error Log" -and $_.LastRunOutcome -eq 'Succeeded' }).LastRunDate | Should -BeGreaterOrEqual (Get-Date).AddDays(-1)
-        }
-        It 'Should have successfully run an Integrity Check job for the SYSTEM_DATABASES in the last week' {
-            ($jobs | Where-Object { $_.Name -like "*DatabaseIntegrityCheck - SYSTEM_DATABASES" -and $_.LastRunOutcome -eq 'Succeeded' }).LastRunDate | Should -BeGreaterOrEqual (Get-Date).AddDays(-7)
-        }
-        It 'Should have successfully run an Integrity Check job for the USER_DATABASES in the last week' {
-            ($jobs | Where-Object { $_.Name -like "*DatabaseIntegrityCheck - USER_DATABASES" -and $_.LastRunOutcome -eq 'Succeeded' }).LastRunDate | Should -BeGreaterOrEqual (Get-Date).AddDays(-7)
-        }
-        It 'Should have successfully run an Index Maintenance job for the ALL_DATABASES successfully in the last week' {
-            ($jobs | Where-Object { $_.Name -like "*IndexOptimize - ALL_DATABASES" -and $_.LastRunOutcome -eq 'Succeeded' }).LastRunDate | Should -BeGreaterOrEqual (Get-Date).AddDays(-7)
-        }
-    }
 }
 
 Describe "Security Configuration" {
@@ -246,14 +228,14 @@ Describe "Security Configuration" {
         }
     }
     Context "$SqlInstance`: SQL Management Group Membership in Local Administrators" {
-        $MatchCount = Invoke-Command -ComputerName $server -ScriptBlock { (Get-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement | Measure-Object).Count } 
+        $MatchCount = Invoke-Command -ComputerName $SqlInstance -ScriptBlock { (Get-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement | Measure-Object).Count } 
 
         It "$SqlInstance`: Testing to see if SQL Management Group in a member of the Local Administrators group" {
             $MatchCount | Should -BeGreaterOrEqual 1 -Because "We want SQL Management Group as a member of the Local Administrators group"
         }
     }
     Context "$SqlInstance`: Sysadmin fixed server role members" {
-        $GroupMembers = Get-DbaServerRoleMember -SqlInstance $server -ServerRole sysadmin 
+        $GroupMembers = Get-DbaServerRoleMember -SqlInstance $SqlInstance -ServerRole sysadmin 
 
         It "$SqlInstance`: Testing to see if $SQLManagement in a member of the sysadmin server role" {
             $GroupMembers.Name | Where-Object { $_ -eq $SQLManagement } | Should -Contain $SQLManagement
@@ -264,7 +246,7 @@ Describe "Security Configuration" {
         }
     }
     Context "$SqlInstance`: sa SQL login should be disabled" {
-        $logins = Get-DbaLogin -SqlInstance $server | Where-Object { $_.Name -eq 'sa' }
+        $logins = Get-DbaLogin -SqlInstance $SqlInstance | Where-Object { $_.Name -eq 'sa' }
         It "$SqlInstance`: Test to see if sa is disabled" {
             $logins.IsDisabled | Should -Be $true
         }
@@ -273,9 +255,9 @@ Describe "Security Configuration" {
 
 Describe "Instance Startup Trace Flags" {
     Context "$SqlInstance`: Test to see if trace flags are set if < 2017 1117/1118/3226 else if 2017+ just 3226" {
-        $server = Connect-DbaInstance -SqlInstance $server 
-        $serverversion = $server.Version
-        $traceflags = (Get-DbaStartupParameter -SqlInstance $server).TraceFlags.Split(',')
+        $SqlInstance = Connect-DbaInstance -SqlInstance $SqlInstance 
+        $serverversion = $SqlInstance.Version
+        $traceflags = (Get-DbaStartupParameter -SqlInstance $SqlInstance).TraceFlags.Split(',')
 
         if ( $serverversion.major -lt 13 ) {
             It 'Before SQL 2016, TF 1117' {
@@ -290,7 +272,7 @@ Describe "Instance Startup Trace Flags" {
         }
         It 'Find any non-standard trace flags' {
             #pulling the TFs again in the event the previous tests added one
-            $traceflags = (Get-DbaStartupParameter -SqlInstance $server).TraceFlags.Split(',')
+            $traceflags = (Get-DbaStartupParameter -SqlInstance $SqlInstance).TraceFlags.Split(',')
             $traceflags | Should -BeIn @('1117', '1118', '3226') -Because "There are non-standard trace flags enabled"
         }
     }
@@ -343,7 +325,7 @@ Describe "Test for Instance Level Settings" {
     }
     Context "$SqlInstance`: Database Mail Configuration" {
         #Enable Database mail
-        @(Get-DbaDbMailAccount -SqlInstance $server).ForEach{
+        @(Get-DbaDbMailAccount -SqlInstance $SqlInstance).ForEach{
             It "$SqlInstance`: Testing for valid Database Mail configuration" {
                 $PSItem.EmailAddress | Should -Match '^([\w-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([\w-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$' -Because "There should be a valid email address set"
             }
@@ -365,7 +347,7 @@ Describe "Test for Instance Level Settings" {
 }
 
 Describe "TempDB Configuration" {
-    $TempDBTest = Test-DbaTempdbConfig -SqlServer $server
+    $TempDBTest = Test-DbaTempdbConfig -SqlInstance $SqlInstance
     Context "$SqlInstance`: TempDB should have best practice or 8 TempDB Files" {
         It "should have 8 TempDB Files on $($TempDBTest[1].SqlInstance)" {
             $Reccomended = @()
@@ -389,33 +371,33 @@ Describe "TempDB Configuration" {
             $TempDBTest[4].CurrentSetting | Should -Be $TempDBTest[4].Recommended -Because 'Tempdb files should be able to grow'
         }
     }
-    Context "$SqlInstance`: TempDB files shoulda ll be the same size" {
-        It "TempDB files shoulda ll be the same size" {
-            @((Get-DbaDbFile -SqlInstance $server -Database tempdb).Where{ $_.Type -eq 0 }.Size.Megabyte | Select-Object -Unique).Count | Should -Be 1 -Because "We want all the tempdb data files to be the same size"
+    Context "$SqlInstance`: TempDB files should all be the same size" {
+        It "TempDB data files should all be the same size" {
+            @((Get-DbaDbFile -SqlInstance $SqlInstance -Database tempdb).Where{ $_.Type -eq 0 }.Size.Megabyte | Select-Object -Unique).Count | Should -Be 1 -Because "We want all the tempdb data files to be the same size"
         }
     }
 }  
 
 Describe "Database Settings" {
     Context "$SqlInstance`: Model Database Should Be Set to Simple" {
-        @(Get-DbaDatabase -SqlInstance $server -Database 'model').ForEach{
+        @(Get-DbaDatabase -SqlInstance $SqlInstance -Database 'model').ForEach{
             It 'Should have a recovery model set to SIMPLE' {
                 $PSItem.RecoveryModel | Should -Be 'SIMPLE' -Because "We want to use the SIMPLE recovery model for newly databases created."
             }
-        }
+        } 
     }
 
-    $files = Get-DbaDbFile -SqlInstance $server -Database 'model'
-    Context "$SqlInstance`: Model Database Should have data file growth set to 1GB or greater" {      
+    $files = Get-DbaDbFile -SqlInstance $SqlInstance -Database 'model'
+    Context "$SqlInstance`: Model Database Should have data file growth set to 512MB or greater" {      
         $mdffile = $files | Where-Object { $_.ID -eq "1" }
-        It 'Should have a data file growth size set to greater than 1GB' {
-            $mdffile.growth | Should -BeGreaterOrEqual 10240 -Because 'we want the mdf to have a 1GB expansion by default'
+        It 'Should have a data file growth size set to greater than 512MB' {
+            $mdffile.growth | Should -BeGreaterOrEqual 524288 -Because 'we want the mdf to have a 1GB expansion by default'
         }  
     }
-    Context "$SqlInstance`: Model Database Should have log file growth set to 1GB or greater" {
+    Context "$SqlInstance`: Model Database Should have log file growth set to 512MB or greater" {
         $logfile = $files | Where-Object { $_.TypeDescription -eq "LOG" }
-        It 'Should have a log file growth size set to greater than 1GB' {
-            $logfile.growth | Should -BeGreaterOrEqual 10240 -Because 'we want the log to have a 1GB expansion by default'
+        It 'Should have a log file growth size set to greater than 512MB' {
+            $logfile.growth | Should -BeGreaterOrEqual 524288 -Because 'we want the log to have a 1GB expansion by default'
         }
     }
 }

@@ -34,6 +34,7 @@ $AdminAccount = "$ActiveDirectoryDomain\Database Engineers"
 $SQLManagement = "$ActiveDirectoryDomain\SQL Management"
 
 $NumberOfPhysicalCoresPerCPU = 6
+$SmtpRelay = 'relay.polsinelli.com'
 
 #Location of installation files for each version of SQL Server. Each of these is currently the latest SP we've standardized on.
 $InstallRoot = "\\Dc1\share\INSTALLS"
