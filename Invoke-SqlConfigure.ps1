@@ -91,23 +91,25 @@ function Invoke-SqlConfigure {
     catch {
         Write-Error "Error enabling or setting the instance trace flags: $_"
     }
-        
+
     #Enroll in CMS/MSX
     try {
         if ( $InstanceName -ne 'MSSQLSERVER') {
-            if (  -Not ( Get-DbaRegisteredServer -SqlInstance $SQLManagementServer | Where-Object { $_.Name -contains "$SqlInstance\$InstanceName" }  ) ) {
+            if ( -Not ( Get-DbaRegisteredServer -SqlInstance $SQLManagementServer | Where-Object { $_.Name -contains "$SqlInstance\$InstanceName" }  ) ) {
                 Add-DbaRegServer -SqlInstance $SQLManagementServer -ServerName "$SqlInstance\$InstanceName" -Group 'ALL' 
             }
-            if (Get-DbaAgentServer -SqlInstance $SqlInstance | Where-Object { -Not $_.MsxServerName }){
+
+            if ( -Not (Get-DbaAgentServer -SqlInstance $CMDBServer).TargetServers.Name | Where-Object { $_ -contains "$SqlInstance\$InstanceName" }){
                 Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -InstanceName $InstanceName -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
             }
             Install-SqlCertificate -ServerName $SqlInstance -InstanceName $InstanceName
         }
         else {
-            if (  -Not ( Get-DbaRegisteredServer -SqlInstance $SQLManagementServer | Where-Object { $_.Name -contains $SqlInstance } ) ) {
+            if ( -Not ( Get-DbaRegisteredServer -SqlInstance $SQLManagementServer | Where-Object { $_.Name -contains $SqlInstance } ) ) {
                 Add-DbaRegServer -SqlInstance $SQLManagementServer -ServerName $SqlInstance -Group 'ALL'
             }
-            if (Get-DbaAgentServer -SqlInstance $SqlInstance | Where-Object { -Not $_.MsxServerName }){
+
+            if ( -Not (Get-DbaAgentServer -SqlInstance $CMDBServer).TargetServers.Name | Where-Object { $_ -contains "$SqlInstance" }){
                 Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
             }
             Install-SqlCertificate -ServerName $SqlInstance
