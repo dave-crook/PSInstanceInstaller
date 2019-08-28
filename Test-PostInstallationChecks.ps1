@@ -6,8 +6,8 @@ Param(
     [Parameter(Mandatory = $true, Position = 0, HelpMessage = 'Specify a servername')]
     [ValidateNotNullorEmpty()]
     [string] $SqlInstance,
-    [bool] $remediate
-)
+    [string] $InstanceName = "MSSQLSERVER"
+    )
 
 . .\Register-Msx.ps1
 . .\Test-ServiceAccountToGroup.ps1

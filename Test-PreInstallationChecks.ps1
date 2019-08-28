@@ -6,14 +6,15 @@ Param(
     [Parameter(Mandatory = $true)] [String] $InstallationSource,
     [Parameter(Mandatory = $true)] [String] $UpdateSource
 )
-{
-    if ( -Not (Test-NetConnection -ComputerName $ServerName -InformationLevel Quiet -CommonTCPPort WINRM) ) {
-        Write-Error "Cannot Reach $ServerName ensure that the system is online or the firewall is not blocking access to WinRM. Script exiting." -ErrorAction Stop
-        exit
-    }
-}
 
 Describe "Pre-Installation Checks" {
+    Context "Server accessible via WinRM" {
+        $result = Test-NetConnection -ComputerName $ServerName -InformationLevel Quiet -CommonTCPPort WINRM
+        It "The target server should be accessible via WinRM" {
+            $result | Should -BeTrue -Because "We need to do stuff with WinRM during the installation."        
+        }
+    }
+
     Context "Service Account Validation" {
         $CredentialTestResult = Test-AdCredential -Credential $EngineCredential
         It "Testing to see if the Engine Service account credential is valid $($EngineCredential.Username): " {
@@ -54,4 +55,3 @@ Describe "Pre-Installation Checks" {
     }
 
 }
-  
