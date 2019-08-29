@@ -2,12 +2,25 @@ function Invoke-SqlConfigure {
     Param(
         [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
         [String]   $InstanceName = "MSSQLSERVER"
-    
     )
-        
+
+    #region Windows Configuration
+    $PageFileLocation = 'F:\'
+    $PageFileSize = 8192
+    $PageFileSettings = Get-DbaPageFileSetting -ComputerName $SqlInstance
+    if ( $PageFileSettings.FileName -notlike "$PageFileLocation*" -or $PageFileSettings.InitialSize -ne $PageFileSize  -or $PageFileSettings.MaximumSize -ne $PageFileSize  ){
+        Write-Output 'here'
+        Set-PageFile -ComputerName $SqlInstance -Location $PageFileLocation -InitialSize $PageFileSize -MaximumSize $PageFileSize        
+    }
+    else{
+        Write-Output "Page file in desired state"
+        $PageFileSettings
+    }
+    #end region
+
     #region SQL Management
     #Add "SQL Management Group to local administrators, this is for CommVault access to the server"
-    $group = Invoke-Command -ComputerName $SqlInstance -ScriptBlock { Get-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement }
+    $group = Invoke-Command -ComputerName $SqlInstance -ScriptBlock { Get-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement } 
     try {
         if ( -not $group ) {
             Write-Verbose "Adding $($group.Name) to Local Adminstrators group on $servername"
@@ -92,21 +105,27 @@ function Invoke-SqlConfigure {
     catch {
         Write-Error "Error enabling or setting the instance trace flags: $_"
     }
-        
+
     #Enroll in CMS/MSX
     try {
         if ( $InstanceName -ne 'MSSQLSERVER') {
-            if (  -Not ( Get-DbaRegisteredServer -SqlInstance $SQLManagementServer | Where-Object { $_.Name -contains "$SqlInstance\$InstanceName" }  ) ) {
+            if ( -Not ( Get-DbaRegisteredServer -SqlInstance $SQLManagementServer | Where-Object { $_.Name -contains "$SqlInstance\$InstanceName" }  ) ) {
                 Add-DbaRegServer -SqlInstance $SQLManagementServer -ServerName "$SqlInstance\$InstanceName" -Group 'ALL' 
             }
-            Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -InstanceName $InstanceName -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
+
+            if ( -Not (Get-DbaAgentServer -SqlInstance $CMDBServer).TargetServers.Name | Where-Object { $_ -contains "$SqlInstance\$InstanceName" }){
+                Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -InstanceName $InstanceName -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
+            }
             Install-SqlCertificate -ServerName $SqlInstance -InstanceName $InstanceName
         }
         else {
-            if (  -Not ( Get-DbaRegisteredServer -SqlInstance $SQLManagementServer | Where-Object { $_.Name -contains $SqlInstance } ) ) {
+            if ( -Not ( Get-DbaRegisteredServer -SqlInstance $SQLManagementServer | Where-Object { $_.Name -contains $SqlInstance } ) ) {
                 Add-DbaRegServer -SqlInstance $SQLManagementServer -ServerName $SqlInstance -Group 'ALL'
             }
-            Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
+
+            if ( -Not (Get-DbaAgentServer -SqlInstance $CMDBServer).TargetServers.Name | Where-Object { $_ -contains "$SqlInstance" }){
+                Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
+            }
             Install-SqlCertificate -ServerName $SqlInstance
         }    
     }
@@ -125,14 +144,17 @@ function Invoke-SqlConfigure {
 
     #Configure Model
     try {
-        Set-DbaDbRecoveryModel -SqlInstance $SqlInstance -Database "MODEL" -RecoveryModel Simple -Confirm:$false -EnableException
+        $modelrecoverymodel = Get-DbaDbRecoveryModel -SqlInstance "$SqlInstance\$InstanceName" -Database "MODEL"
+        if ( $modelrecoverymodel.RecoveryModel -ne 'SIMPLE' ){
+            Set-DbaDbRecoveryModel -SqlInstance "$SqlInstance\$InstanceName" -Database "MODEL" -RecoveryModel Simple -Confirm:$false -EnableException
+        }
         $Query = "ALTER DATABASE [model] MODIFY FILE ( NAME = N`'modeldev`', FILEGROWTH = 512GB )"
         Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Query $Query -EnableException
         $Query = "ALTER DATABASE [model] MODIFY FILE ( NAME = N`'modellog`', FILEGROWTH = 512GB )"
         Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Query $Query -EnableException
 
         Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Database "MASTER" -File ".\2-querystore.sql"  -EnableException
-        #Set-DbaDbQueryStoreOption -SqlInstance $SqlInstance -Database 'MODEL' -State ReadWrite -FlushInterval 900 -CollectionInterval 30 -MaxSize 1000 -CaptureMode Auto -CleanupMode Auto -StaleQueryThreshold 367
+        #Set-DbaDbQueryStoreOption -SqlInstance "$SqlInstance\$InstanceName" -Database 'MODEL' -State ReadWrite -FlushInterval 900 -CollectionInterval 30 -MaxSize 1000 -CaptureMode Auto -CleanupMode Auto -StaleQueryThreshold 367
     }
     catch {
         Write-Error "Error configuring the model database: $_"
@@ -141,7 +163,9 @@ function Invoke-SqlConfigure {
     
     #region Database Mail Configuration
     try {
-        Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name 'Database Mail XPs' -Value 1 
+        if ( (Get-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name 'Database Mail XPs').ConfiguredValue -ne 1) {
+            Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name 'Database Mail XPs' -Value 1 
+        }
 
         if ( $SqlInstance -ne "MSSQLSERVER" ) {
             $EmailAddress = "$SqlInstance`_$InstanceName@polsinelli.com"        
@@ -150,18 +174,26 @@ function Invoke-SqlConfigure {
             $EmailAddress = $SqlInstance
         }
 
-        $account = New-DbaDbMailAccount -SqlInstance "$SqlInstance\$InstanceName" -Name 'Default' -EmailAddress $EmailAddress -DisplayName $EmailAddress -MailServer $SmtpRelay -Force
-        New-DbaDbMailProfile -SqlInstance "$SqlInstance\$InstanceName" -Name 'Default' -MailAccountName $account.Name 
+        $MailAccount = Get-DbaDbMailAccount -SqlInstance "$SqlInstance\$InstanceName"
+
+        if ($MailAccount.Name -ne 'Default'){
+            $NewMailAccount = New-DbaDbMailAccount -SqlInstance "$SqlInstance\$InstanceName" -Name 'Default' -EmailAddress $EmailAddress -DisplayName $EmailAddress -MailServer $SmtpRelay -Force
+            New-DbaDbMailProfile -SqlInstance "$SqlInstance\$InstanceName" -Name 'Default' -MailAccountName $NewMailAccount.Name     
+        }
 
         #Create the mail profile, create the Agent Operator and set the failsafe operator settings
         $Query = @()
         $Query += 'EXEC msdb.dbo.sp_send_dbmail @profile_name = ''Default'', @recipients = ''dbengineering@polsinelli.com'', @subject = ''Test message'', @body = ''This is the body of the test message.'''
-        $Query += 'EXEC msdb.dbo.sp_add_operator @name = N''Alerts'', @email_address = N''sqlalerts@polsinelli.com'''
+
+        if (  -Not (Get-DbaAgentOperator -SqlInstance "$SqlInstance\$InstanceName" -Operator 'Alerts') ){
+            $Query += 'EXEC msdb.dbo.sp_add_operator @name = N''Alerts'', @email_address = N''sqlalerts@polsinelli.com'''
+        }
+
         $Query += 'EXEC master.dbo.sp_MSsetalertinfo @failsafeoperator = N''Alerts''';
         $Query += 'EXEC master.dbo.sp_MSsetalertinfo @notificationmethod = 1';
         
         foreach ($line in $Query) {
-            Invoke-DbaQuery -SqlInstance  "$SqlInstance\$InstanceName" -Query $line -EnableException
+            Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Query $line -EnableException
         }
     }
     catch {
