@@ -21,7 +21,7 @@ Describe "Management Services" {
         }
     }
     Context "$SqlInstance`: Registered in MSX" {
-        $AgentConfiguration = (Get-DbaAgentServer -SqlInstance $SqlInstance | Select-Object JobServerType, MsxServerName)
+        $AgentConfiguration = (Get-DbaAgentServer -SqlInstance "$SqlInstance\$InstanceName" | Select-Object JobServerType, MsxServerName)
 
         if ($AgentConfiguration.JobServerType -eq 'Msx') {
             It "$SqlInstance`: Testing to ensure this is a master server" {
@@ -55,12 +55,12 @@ Describe "Management Services" {
 Describe "SQL Agent Configuration" {
     Context "$SqlInstance`: Testing to see if the SQL Server Agent Service is running" {
         It "Testing to see if the SQL Server Agent Service is running" {
-            $result = (Get-DbaService -ComputerName $SqlInstance -Type Agent).State
+            $result = (Get-DbaService -ComputerName "$SqlInstance\$InstanceName" -Type Agent).State
             $result | Should -Be 'Running' -Because "We want to ensure SQL Server Service is online."
         }
     } 
-    Context "$SqlInstance`: SqlAgent Opertor" {
-        @(Get-DbaAgentOperator -SqlInstance $SqlInstance -Operator Alerts).ForEach{
+    Context "$SqlInstance`: SqlAgent Operator" {
+        @(Get-DbaAgentOperator -SqlInstance "$SqlInstance\$InstanceName" -Operator Alerts).ForEach{
             It 'Testing for an Operator named Alerts' {
                 $PSItem.Name | Should -Be "Alerts" -Because "There should be an operator named Alerts"
             }
@@ -70,7 +70,7 @@ Describe "SQL Agent Configuration" {
         }  
     }
     Context "$SqlInstance`: Agent History Retention" {
-        @(Get-DbaAgentServer -SqlInstance $SqlInstance).ForEach{
+        @(Get-DbaAgentServer -SqlInstance "$SqlInstance\$InstanceName").ForEach{
             It "$SqlInstance`: Should have a job history length set to 1000 per job" {
                 $psitem.MaximumJobHistoryRows | Should -BeGreaterOrEqual 1000 -Because "We want to keep a large body of job history around per job."
             }
@@ -179,8 +179,8 @@ Describe "SQL Agent Configuration" {
 Describe "Ola Hallengren SP and Job Configuration" {
     Context "$SqlInstance`: Test to see if Ola Hallengrens Maintenance Solution and if sp_whoisactive is installed" {
         #Do not use this, brutally slow.
-        #$storedprocedures = (Get-DbaDbStoredProcedure -SqlInstance $SqlInstance -Database 'master' -ExcludeSystemSp).Name
-        $storedprocedures = (Get-DbaModule -SqlInstance $SqlInstance -Database 'master' -ExcludeSystemObjects | Where-Object { $_.Type -eq 'SQL_STORED_PROCEDURE' } ).Name
+        #$storedprocedures = (Get-DbaDbStoredProcedure -SqlInstance "$SqlInstance\$InstanceName" -Database 'master' -ExcludeSystemSp).Name
+        $storedprocedures = (Get-DbaModule -SqlInstance "$SqlInstance\$InstanceName" -Database 'master' -ExcludeSystemObjects | Where-Object { $_.Type -eq 'SQL_STORED_PROCEDURE' } ).Name
 
         It 'Testing for DatabaseBackup' {
             $storedprocedures | Should -Contain "DatabaseBackup" -Because "We want this script on all systems"
@@ -199,7 +199,7 @@ Describe "Ola Hallengren SP and Job Configuration" {
         }
     }
     Context "$SqlInstance`: Test to see if maintenance jobs are on the local instance" {
-        $jobs = Get-DbaAgentJob -SqlInstance $SqlInstance | Where-Object { $_.Enabled -eq $true }
+        $jobs = Get-DbaAgentJob -SqlInstance "$SqlInstance\$InstanceName" | Where-Object { $_.Enabled -eq $true }
         It 'Should have a CommandLog Cleanup job' {
             ($jobs.Name | Where-Object { $_ -like "*CommandLog Cleanup" }) | Should -BeLike "*CommandLog Cleanup" 
         }
@@ -235,7 +235,7 @@ Describe "Security Configuration" {
         }
     }
     Context "$SqlInstance`: Sysadmin fixed server role members" {
-        $GroupMembers = Get-DbaServerRoleMember -SqlInstance $SqlInstance -ServerRole sysadmin 
+        $GroupMembers = Get-DbaServerRoleMember -SqlInstance "$SqlInstance\$InstanceName" -ServerRole sysadmin 
 
         It "$SqlInstance`: Testing to see if $SQLManagement in a member of the sysadmin server role" {
             $GroupMembers.Name | Where-Object { $_ -eq $SQLManagement } | Should -Contain $SQLManagement
@@ -246,7 +246,7 @@ Describe "Security Configuration" {
         }
     }
     Context "$SqlInstance`: sa SQL login should be disabled" {
-        $logins = Get-DbaLogin -SqlInstance $SqlInstance | Where-Object { $_.Name -eq 'sa' }
+        $logins = Get-DbaLogin -SqlInstance "$SqlInstance\$InstanceName" | Where-Object { $_.Name -eq 'sa' }
         It "$SqlInstance`: Test to see if sa is disabled" {
             $logins.IsDisabled | Should -Be $true
         }
@@ -255,9 +255,9 @@ Describe "Security Configuration" {
 
 Describe "Instance Startup Trace Flags" {
     Context "$SqlInstance`: Test to see if trace flags are set if < 2017 1117/1118/3226 else if 2017+ just 3226" {
-        $SqlInstance = Connect-DbaInstance -SqlInstance $SqlInstance 
-        $serverversion = $SqlInstance.Version
-        $traceflags = (Get-DbaStartupParameter -SqlInstance $SqlInstance).TraceFlags.Split(',')
+        $ThisSqlInstance = Connect-DbaInstance -SqlInstance "$SqlInstance\$InstanceName" 
+        $serverversion = $ThisSqlInstance.Version
+        $traceflags = (Get-DbaStartupParameter -SqlInstance "$SqlInstance\$InstanceName").TraceFlags.Split(',')
 
         if ( $serverversion.major -lt 13 ) {
             It 'Before SQL 2016, TF 1117' {
@@ -272,7 +272,7 @@ Describe "Instance Startup Trace Flags" {
         }
         It 'Find any non-standard trace flags' {
             #pulling the TFs again in the event the previous tests added one
-            $traceflags = (Get-DbaStartupParameter -SqlInstance $SqlInstance).TraceFlags.Split(',')
+            $traceflags = (Get-DbaStartupParameter -SqlInstance "$SqlInstance\$InstanceName").TraceFlags.Split(',')
             $traceflags | Should -BeIn @('1117', '1118', '3226') -Because "There are non-standard trace flags enabled"
         }
     }
@@ -280,7 +280,7 @@ Describe "Instance Startup Trace Flags" {
 
 Describe "Test for Instance Level Settings" {
     Context "$SqlInstance`: Memory Configuration" {
-        $Memory = (Test-DbaMaxMemory -SqlInstance $SqlInstance)
+        $Memory = (Test-DbaMaxMemory -SqlInstance "$SqlInstance\$InstanceName")
         $RecommendedMB = $Memory.RecommendedMB
         $SqlMaxMB = $Memory.SqlMaxMB
         It "Checking the Max Memory setting for the instance" {
@@ -288,7 +288,7 @@ Describe "Test for Instance Level Settings" {
         }  
     }
     Context "$SqlInstance`: MaxDOP Configuration" {
-        $dop = Test-DbaMaxDop -SqlInstance $SqlInstance
+        $dop = Test-DbaMaxDop -SqlInstance "$SqlInstance\$InstanceName"
         $DopInstance = ($dop | Where-Object { $_.Database -eq 'n/a' })
         $DopDatabase = ($dop | Where-Object { $_.Database -ne 'n/a' })
 
@@ -302,7 +302,7 @@ Describe "Test for Instance Level Settings" {
         }    
     }
 
-    $configuration = Get-DbaSpConfigure -SqlInstance $SqlInstance
+    $configuration = Get-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName"
     Context "$SqlInstance`: DAC Configuration" {
         It "Remote Admin Connections - DAC" {
             $configuration.Name | Should -Contain 'RemoteDacConnectionsEnabled'
@@ -325,19 +325,19 @@ Describe "Test for Instance Level Settings" {
     }
     Context "$SqlInstance`: Database Mail Configuration" {
         #Enable Database mail
-        @(Get-DbaDbMailAccount -SqlInstance $SqlInstance).ForEach{
+        @(Get-DbaDbMailAccount -SqlInstance "$SqlInstance\$InstanceName").ForEach{
             It "$SqlInstance`: Testing for valid Database Mail configuration" {
                 $PSItem.EmailAddress | Should -Match '^([\w-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([\w-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$' -Because "There should be a valid email address set"
             }
         }
     }
     Context "$SqlInstance`: Testing for valid network certificate." {
-        @(Get-DbaNetworkCertificate -ComputerName $SqlInstance).ForEach{
+        @(Get-DbaNetworkCertificate -ComputerName "$SqlInstance\$InstanceName").ForEach{
             It 'Should return a valid certificate from the SQL Server Network Configuration' {
                 $psitem.Expires | Should -BeGreaterThan (Get-Date) -Because "Certificate should not be expired"
             }
             It 'Should contain a DNS name that is a short name' {
-                ($psitem.DnsNameList.Unicode) | Should -Contain $SqlInstance -Because "Certificate should contain a DNS shortname for network connection"
+                ($psitem.DnsNameList.Unicode) | Should -Contain "$SqlInstance" -Because "Certificate should contain a DNS shortname for network connection"
             }
             It 'Should contain a DNS name that is a FQDN' {
                 ($psitem.DnsNameList.Unicode) | Should -Contain ([System.Net.Dns]::GetHostByName($SqlInstance).Hostname) -Because "Certificate should contain a DNS FQDN for network connection"
@@ -347,7 +347,7 @@ Describe "Test for Instance Level Settings" {
 }
 
 Describe "TempDB Configuration" {
-    $TempDBTest = Test-DbaTempdbConfig -SqlInstance $SqlInstance
+    $TempDBTest = Test-DbaTempdbConfig -SqlInstance "$SqlInstance\$InstanceName"
     Context "$SqlInstance`: TempDB should have best practice or 8 TempDB Files" {
         It "should have 8 TempDB Files on $($TempDBTest[1].SqlInstance)" {
             $Reccomended = @()
@@ -373,21 +373,21 @@ Describe "TempDB Configuration" {
     }
     Context "$SqlInstance`: TempDB files should all be the same size" {
         It "TempDB data files should all be the same size" {
-            @((Get-DbaDbFile -SqlInstance $SqlInstance -Database tempdb).Where{ $_.Type -eq 0 }.Size.Megabyte | Select-Object -Unique).Count | Should -Be 1 -Because "We want all the tempdb data files to be the same size"
+            @((Get-DbaDbFile -SqlInstance "$SqlInstance\$InstanceName" -Database tempdb).Where{ $_.Type -eq 0 }.Size.Megabyte | Select-Object -Unique).Count | Should -Be 1 -Because "We want all the tempdb data files to be the same size"
         }
     }
 }  
 
 Describe "Database Settings" {
     Context "$SqlInstance`: Model Database Should Be Set to Simple" {
-        @(Get-DbaDatabase -SqlInstance $SqlInstance -Database 'model').ForEach{
+        @(Get-DbaDatabase -SqlInstance "$SqlInstance\$InstanceName" -Database 'model').ForEach{
             It 'Should have a recovery model set to SIMPLE' {
                 $PSItem.RecoveryModel | Should -Be 'SIMPLE' -Because "We want to use the SIMPLE recovery model for newly databases created."
             }
         } 
     }
 
-    $files = Get-DbaDbFile -SqlInstance $SqlInstance -Database 'model'
+    $files = Get-DbaDbFile -SqlInstance "$SqlInstance\$InstanceName" -Database 'model'
     Context "$SqlInstance`: Model Database Should have data file growth set to 512MB or greater" {      
         $mdffile = $files | Where-Object { $_.ID -eq "1" }
         It 'Should have a data file growth size set to greater than 512MB' {

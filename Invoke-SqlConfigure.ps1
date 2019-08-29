@@ -3,7 +3,21 @@ function Invoke-SqlConfigure {
         [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
         [String]   $InstanceName = "MSSQLSERVER"
     )
-        
+
+    #region Windows Configuration
+    $PageFileLocation = 'F:\'
+    $PageFileSize = 8192
+    $PageFileSettings = Get-DbaPageFileSetting -ComputerName $SqlInstance
+    if ( $PageFileSettings.FileName -notlike "$PageFileLocation*" -or $PageFileSettings.InitialSize -ne $PageFileSize  -or $PageFileSettings.MaximumSize -ne $PageFileSize  ){
+        Write-Output 'here'
+        Set-PageFile -ComputerName $SqlInstance -Location $PageFileLocation -InitialSize $PageFileSize -MaximumSize $PageFileSize        
+    }
+    else{
+        Write-Output "Page file in desired state"
+        $PageFileSettings
+    }
+    #end region
+
     #region SQL Management
     #Add "SQL Management Group to local administrators, this is for CommVault access to the server"
     $group = Invoke-Command -ComputerName $SqlInstance -ScriptBlock { Get-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement } 

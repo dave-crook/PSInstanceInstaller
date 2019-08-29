@@ -10,6 +10,7 @@
 . .\Install-SqlCertificate.ps1
 . .\Test-ServiceAccountToGroup.ps1
 . .\Set-ServiceAccountToGroup.ps1
+. .\Set-PageFile.ps1
 
 $Version = 2017
 $SqlInstance = 'DBASQL1'
@@ -28,7 +29,7 @@ $PreflightChecksResult = Invoke-Pester -Script @{
         InstallationSource =  $InstallationSources[$Version];
         UpdateSource =  $UpdateSources[$Version];
     }
-}  -PassThru
+}  -PassThru 
 
 if ( $PreflightChecksResult.FailedCount -gt 0 ){
     Write-Output "FAILED: Preflight checks failed please ensure pester test passes" -ErrorAction Stop
@@ -51,8 +52,7 @@ $InstallationResult = Install-DbaInstance `
     -Configuration @{ UpdateSource = $UpdateSources[$Version] } `
     -PerformVolumeMaintenanceTasks `
     -Restart `
-    -Confirm:$false `
-    -Verbose 
+    -Confirm:$false
 
 $InstallationResult
 
@@ -60,6 +60,6 @@ if ( -Not ($InstallationResult.Successful )){
     Write-Output "FAILED: Installation on $SqlInstance failed. Examine the installation log at $($InstallationResult.LogFile) on the target server." -ErrorAction Stop
 }
 
-Invoke-SqlConfigure -SqlInstance $SqlInstance
+Invoke-SqlConfigure -SqlInstance $SqlInstance 
 
 Invoke-Pester -Script @{ Path = '.\Test-PostInstallationChecks.ps1' ; Parameters = @{ SqlInstance = $SqlInstance; } }

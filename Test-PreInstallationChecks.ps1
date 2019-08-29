@@ -9,7 +9,7 @@ Param(
 
 Describe "Pre-Installation Checks" {
     Context "Server accessible via WinRM" {
-        $result = Test-NetConnection -ComputerName $ServerName -InformationLevel Quiet -CommonTCPPort WINRM
+        $result = Test-NetConnection -ComputerName $SqlInstance -InformationLevel Quiet -CommonTCPPort WINRM
         It "The target server should be accessible via WinRM" {
             $result | Should -BeTrue -Because "We need to do stuff with WinRM during the installation."        
         }
