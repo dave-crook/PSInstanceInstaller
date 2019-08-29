@@ -1,8 +1,8 @@
 #Credential Information
 $InstallationCredential = Get-Credential -Message 'This is the account the installation will run as on the target SQL Server. Most likely your administrator login'
-$MasterKey = ConvertTo-SecureString -String "?ntadmin4" -AsPlainText -Force
-$KeePassEntryGroupPath  = 'CentinoLab/SQL'
-$DatabaseProfileName = 'CentinoLab/SQL'
+$MasterKey = ConvertTo-SecureString -String "Where'sMyTowel?" -AsPlainText -Force
+$KeePassEntryGroupPath  = 'NetworkTeamPasswordVault/General/SVC Accounts/Sql Svs Accounts'
+$DatabaseProfileName = 'NetworkTeamPasswordVault'
 
 #Drive Path Information
 $InstancePath = 'S:\SYSTEM'
@@ -15,11 +15,12 @@ $BackupPath = 'S:\BACKUPS'
 $logfile = "output.log"
 
 #Active Directory Information
-$ActiveDirectoryDomain = "LAB"
+$ActiveDirectoryDomain = "POLSINELLI"
+$OU = "OU=SQL Servers,OU=Servers,DC=POLSINELLI,DC=LAW"
 
 #MSX and CMS
-$SQLManagementServer = "SQL-MGMT"
-$CMDBServer = 'SQL-MGMT'
+$SQLManagementServer = 'DCP-VSQL-01'
+$CMDBServer = 'DCP-VSQL-01'
 
 #The SQL Service account will be added to this group. This group is used for access to the CMS and MSX.
 $SqlServiceGroup = "SQL Server Service Accounts"
@@ -33,11 +34,15 @@ $AdminAccount = "$ActiveDirectoryDomain\Database Engineers"
 #Additional groups to be added to syadmins and local administrators
 $SQLManagement = "$ActiveDirectoryDomain\SQL Management"
 
+#SentryOne Host
+$S1Host = 'DCP-VSQL-20'
+
 $NumberOfPhysicalCoresPerCPU = 6
 $SmtpRelay = 'relay.polsinelli.com'
 
 #Location of installation files for each version of SQL Server. Each of these is currently the latest SP we've standardized on.
-$InstallRoot = "\\Dc1\share\INSTALLS"
+$InstallRoot = "\\DCP-VSQL-01\INSTALLS"
+
 $InstallationSources = @{
     2012 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2012_enterprise_edition_with_sp_3_x64_dvd_7286819"
     2014 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2014_enterprise_edition_with_service_pack_2_x64_dvd_8962401"

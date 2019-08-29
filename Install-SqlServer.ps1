@@ -1,5 +1,5 @@
 #Requires -Modules @{ ModuleName="pester"; ModuleVersion="4.8.1" }
-#Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.23" }
+#Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.34" }
 #Requires -RunAsAdministrator
 
 . .\Import-EnvironmentSettings.ps1
@@ -11,11 +11,12 @@
 . .\Test-ServiceAccountToGroup.ps1
 . .\Set-ServiceAccountToGroup.ps1
 . .\Set-PageFile.ps1
+. .\Add-SentryOne.ps1
 
 $Version = 2017
-$SqlInstance = 'DBASQL1'
+$SqlInstance = 'DCP-VSQL-98'
 $Features = @('ENGINE')
-$ServiceAccount = "SA-DSCSQL"
+$ServiceAccount = "SA-$SqlInstance"
 $password = Get-KeePassPassword -UserName $ServiceAccount -MasterKey $MasterKey -DatabaseProfileName $DatabaseProfileName -pKeePassEntryGroupPath $KeePassEntryGroupPath 
 $svcPassword = ConvertTo-SecureString -String $password -AsPlainText -Force
 $EngineCredential = $AgentCredential = New-Object System.Management.Automation.PSCredential("$ActiveDirectoryDomain\$ServiceAccount", $svcPassword)    
@@ -52,7 +53,7 @@ $InstallationResult = Install-DbaInstance `
     -Configuration @{ UpdateSource = $UpdateSources[$Version] } `
     -PerformVolumeMaintenanceTasks `
     -Restart `
-    -Confirm:$false
+    -Confirm:$false -Verbose
 
 $InstallationResult
 

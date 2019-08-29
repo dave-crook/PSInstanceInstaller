@@ -9,7 +9,6 @@ function Invoke-SqlConfigure {
     $PageFileSize = 8192
     $PageFileSettings = Get-DbaPageFileSetting -ComputerName $SqlInstance
     if ( $PageFileSettings.FileName -notlike "$PageFileLocation*" -or $PageFileSettings.InitialSize -ne $PageFileSize  -or $PageFileSettings.MaximumSize -ne $PageFileSize  ){
-        Write-Output 'here'
         Set-PageFile -ComputerName $SqlInstance -Location $PageFileLocation -InitialSize $PageFileSize -MaximumSize $PageFileSize        
     }
     else{
@@ -22,7 +21,7 @@ function Invoke-SqlConfigure {
     #Add "SQL Management Group to local administrators, this is for CommVault access to the server"
     $group = Invoke-Command -ComputerName $SqlInstance -ScriptBlock { Get-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement } 
     try {
-        if ( -not $group ) {
+        if ( $group.Name -notcontains $SQLManagement  ) {
             Write-Verbose "Adding $($group.Name) to Local Adminstrators group on $servername"
             Invoke-Command -ComputerName $SqlInstance -ScriptBlock { Add-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement }
         }
@@ -106,6 +105,11 @@ function Invoke-SqlConfigure {
         Write-Error "Error enabling or setting the instance trace flags: $_"
     }
 
+    if ( (Get-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name  'remote admin connections').ConfiguredValue -ne 1) {
+        Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name  'remote admin connections' -Value 1 
+    }
+
+
     #Enroll in CMS/MSX
     try {
         if ( $InstanceName -ne 'MSSQLSERVER') {
@@ -113,7 +117,9 @@ function Invoke-SqlConfigure {
                 Add-DbaRegServer -SqlInstance $SQLManagementServer -ServerName "$SqlInstance\$InstanceName" -Group 'ALL' 
             }
 
-            if ( -Not (Get-DbaAgentServer -SqlInstance $CMDBServer).TargetServers.Name | Where-Object { $_ -contains "$SqlInstance\$InstanceName" }){
+            $TargetServer = $null
+            $TargetServer = (Get-DbaAgentServer -SqlInstance $CMDBServer).TargetServers.Name | Where-Object { $_ -contains "$SqlInstance\$InstanceName" } 
+            if ( !$TargetServer ){
                 Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -InstanceName $InstanceName -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
             }
             Install-SqlCertificate -ServerName $SqlInstance -InstanceName $InstanceName
@@ -123,8 +129,13 @@ function Invoke-SqlConfigure {
                 Add-DbaRegServer -SqlInstance $SQLManagementServer -ServerName $SqlInstance -Group 'ALL'
             }
 
-            if ( -Not (Get-DbaAgentServer -SqlInstance $CMDBServer).TargetServers.Name | Where-Object { $_ -contains "$SqlInstance" }){
+            $TargetServer = $null
+            $TargetServer = (Get-DbaAgentServer -SqlInstance $CMDBServer).TargetServers.Name | Where-Object { $_ -contains "$SqlInstance" } 
+            if ( !$TargetServer ){
                 Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
+            }
+            else{
+                Write-Output 'hete'
             }
             Install-SqlCertificate -ServerName $SqlInstance
         }    
@@ -218,4 +229,15 @@ function Invoke-SqlConfigure {
         Write-Error "Error creating the SQL Agent Alerts: $_"
     }
     #endregion
+
+    #region Add Server to S1
+    Import-Module "C:\Program Files\SentryOne\19.0\Intercerve.SQLSentry.Powershell.psd1"
+    $instance = Get-Connection | Where-Object { $_.ServerName -like "$SqlInstance*" }
+    if ( $instance.WatchedBy -notlike "*PerformanceAdvisor*" ){        
+        Add-SentryOne -SqlInstance $SqlInstance -S1Host $S1Host
+    }
+    else{
+        Write-Output "$SqlInstance already in SentryOne"
+    }
+    #region
 }

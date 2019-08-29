@@ -6,9 +6,9 @@ function Set-ServiceAccountToGroup{
     )
 
     try{
-        Write-Verbose "Adding $ServiceAccountName to Group $SqlServiceGroup"  
+        Write-Output "Adding $ServiceAccountName to Group $SqlServiceGroup"  
         $Group = Get-ADGroup -Identity $SqlServiceGroup 
-        $ThisSerivceAccount = Get-ADUser -Identity $ServiceAccountName.Split('\')[1]
+        $ThisSerivceAccount = Get-ADUser -Identity $ServiceAccountName
         Add-AdGroupMember -Identity $Group -Members $ThisSerivceAccount 
         return $True
     }
