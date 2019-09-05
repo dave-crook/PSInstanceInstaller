@@ -41,6 +41,11 @@ function Invoke-SqlConfigure {
         Write-Error "Error creating the login for $SQLManagement and adding it to the sysadmin server role: $_"
     }
 
+
+    #Disable the sa login.
+    Get-DbaLogin -SqlInstance "$SqlInstance\$InstanceName" | Where-Object { $_.Name -eq 'sa' } | Set-DbaLogin -Disable
+
+    
     #Insert this instance into the CMDB
     try {
         if ($InstanceName -ne 'MSSQLSERVER') {

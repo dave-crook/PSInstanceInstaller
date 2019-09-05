@@ -304,23 +304,35 @@ Describe "Test for Instance Level Settings" {
 
     $configuration = Get-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName"
     Context "$SqlInstance`: DAC Configuration" {
-        It "Remote Admin Connections - DAC" {
-            $configuration.Name | Should -Contain 'RemoteDacConnectionsEnabled'
+        It "Remote Admin Connections - DAC - Configured Value" {
+            $configuration | Where-Object { $_.Name -eq 'RemoteDacConnectionsEnabled' } | Select-Object ConfiguredValue -ExpandProperty ConfiguredValue | Should -Be 1
+        }  
+        It "Remote Admin Connections - DAC - Running Value" {
+            $configuration | Where-Object { $_.Name -eq 'RemoteDacConnectionsEnabled' } | Select-Object RunningValue -ExpandProperty RunningValue | Should -Be 1
         }  
     }
     Context "$SqlInstance`: Optimize for Adhoc workloads" {
-        It "Optimize for Adhoc workloads" {
-            $configuration.Name | Should -Contain 'OptimizeAdhocWorkloads'
+        It "Optimize for Adhoc workloads - Configured Value" {
+            $configuration | Where-Object { $_.Name -eq 'OptimizeAdhocWorkloads' } | Select-Object ConfiguredValue -ExpandProperty ConfiguredValue | Should -Be 1
+        }  
+        It "Optimize for Adhoc workloads - Running Value" {
+            $configuration | Where-Object { $_.Name -eq 'OptimizeAdhocWorkloads' } | Select-Object RunningValue -ExpandProperty RunningValue | Should -Be 1
         }  
     }
     Context "$SqlInstance`: AgentXPs Enabled" {
-        It "AgentXPs Enabled" {
-            $configuration.Name | Should -Contain 'AgentXPsEnabled'
+        It "AgentXPs Enabled - Configured Value" {
+            $configuration | Where-Object { $_.Name -eq 'AgentXPsEnabled' } | Select-Object ConfiguredValue -ExpandProperty ConfiguredValue | Should -Be 1
+        }  
+        It "AgentXPs Enabled - Running Value" {
+            $configuration | Where-Object { $_.Name -eq 'AgentXPsEnabled' } | Select-Object RunningValue -ExpandProperty RunningValue | Should -Be 1
         }  
     }
     Context "$SqlInstance`: Database Mail Enabled" {
-        It "DatabaseMailEnabled Enabled" {
-            $configuration.Name | Should -Contain 'DatabaseMailEnabled'
+        It "DatabaseMailEnabled Enabled - Configured Value" {
+            $configuration | Where-Object { $_.Name -eq 'DatabaseMailEnabled' } | Select-Object ConfiguredValue -ExpandProperty ConfiguredValue | Should -Be 1
+        }  
+        It "DatabaseMailEnabled Enabled - Running Value" {
+            $configuration | Where-Object { $_.Name -eq 'DatabaseMailEnabled' } | Select-Object RunningValue -ExpandProperty RunningValue | Should -Be 1
         }  
     }
     Context "$SqlInstance`: Database Mail Configuration" {
