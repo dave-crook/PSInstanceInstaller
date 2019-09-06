@@ -1,5 +1,5 @@
 #Requires -Modules @{ ModuleName="pester"; ModuleVersion="4.8.1" }
-#Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.34" }
+#Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.38" }
 #Requires -RunAsAdministrator
 
 . .\Import-EnvironmentSettings.ps1

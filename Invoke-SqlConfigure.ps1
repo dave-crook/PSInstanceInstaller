@@ -114,6 +114,10 @@ function Invoke-SqlConfigure {
         Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name  'remote admin connections' -Value 1 
     }
 
+    if ( (Get-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name  'optimize for ad hoc workloads').ConfiguredValue -ne 1) {
+        Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name  'optimize for ad hoc workloads' -Value 1 
+    }
+
 
     #Enroll in CMS/MSX
     try {

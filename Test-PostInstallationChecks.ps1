@@ -1,5 +1,5 @@
 #Requires -Modules @{ ModuleName="pester"; ModuleVersion="4.8.1" }
-#Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.34" }
+#Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.38" }
 
 [CmdletBinding()]
 Param(
@@ -7,7 +7,7 @@ Param(
     [ValidateNotNullorEmpty()]
     [string] $SqlInstance,
     [string] $InstanceName = "MSSQLSERVER"
-    )
+)
 
 . .\Register-Msx.ps1
 . .\Test-ServiceAccountToGroup.ps1
@@ -198,6 +198,7 @@ Describe "Ola Hallengren SP and Job Configuration" {
             $storedprocedures | Should -Contain "sp_WhoIsActive" -Because "We want this script on all systems"
         }
     }
+
     Context "$SqlInstance`: Test to see if maintenance jobs are on the local instance" {
         $jobs = Get-DbaAgentJob -SqlInstance "$SqlInstance\$InstanceName" | Where-Object { $_.Enabled -eq $true }
         It 'Should have a CommandLog Cleanup job' {
@@ -216,6 +217,32 @@ Describe "Ola Hallengren SP and Job Configuration" {
             ($jobs.Name | Where-Object { $_ -like "*IndexOptimize - ALL_DATABASES" }) | Should -BeLike "*IndexOptimize - ALL_DATABASES"           
         }
     }
+
+    Context "$SqlInstance`: Test to see if maintenance jobs have run recently" {
+        $InstallDate = Get-DbaInstanceInstallDate "$SqlInstance\$InstanceName" | Select-Object SqlInstallDate -ExpandProperty SqlInstallDate
+
+        if ( $InstallDate.Date -lt (Get-date).AddDays(-7)  ) {
+            $jobs = Get-DbaAgentJob -SqlInstance "$SqlInstance\$InstanceName" | Where-Object { $_.Enabled -eq $true }
+
+            It 'Should have successfully run a CommandLog Cleanup job in the last week' {
+                ($jobs | Where-Object { $_.Name -like "*CommandLog Cleanup" -and $_.LastRunOutcome -eq 'Succeeded' }).LastRunDate | Should -BeGreaterOrEqual (Get-Date).AddDays(-7)
+            }
+  
+            It 'Should have successfully run a Cycle SQL Error Log in the last 24 hours' {
+                ($jobs | Where-Object { $_.Name -like "*Cycle SQL Error Log" -and $_.LastRunOutcome -eq 'Succeeded' }).LastRunDate | Should -BeGreaterOrEqual (Get-Date).AddDays(-1)
+            }
+            It 'Should have successfully run an Integrity Check job for the SYSTEM_DATABASES in the last week' {
+                ($jobs | Where-Object { $_.Name -like "*DatabaseIntegrityCheck - SYSTEM_DATABASES" -and $_.LastRunOutcome -eq 'Succeeded' }).LastRunDate | Should -BeGreaterOrEqual (Get-Date).AddDays(-7)
+            }
+            It 'Should have successfully run an Integrity Check job for the USER_DATABASES in the last week' {
+                ($jobs | Where-Object { $_.Name -like "*DatabaseIntegrityCheck - USER_DATABASES" -and $_.LastRunOutcome -eq 'Succeeded' }).LastRunDate | Should -BeGreaterOrEqual (Get-Date).AddDays(-7)
+            }
+            It 'Should have successfully run an Index Maintenance job for the ALL_DATABASES successfully in the last week' {
+                ($jobs | Where-Object { $_.Name -like "*IndexOptimize - ALL_DATABASES" -and $_.LastRunOutcome -eq 'Succeeded' }).LastRunDate | Should -BeGreaterOrEqual (Get-Date).AddDays(-7)
+            }
+        }
+    }
+  
 }
 
 Describe "Security Configuration" {
@@ -448,38 +475,3 @@ Describe "Windows Settings" {
     #Lock Pages in Memory
     #NOTIMPLEMENTED
 }
-
-#Query store configuration of >= 2016
-#Get-DbaQueryStoreConfig -SqlInstance "DCP-VSQL-01"
-#UNABLE TO QUERY MODEL's QS configuration
-<#Context "Testing for valid Query Store Configuration on Model Database"{
-      Describe "$server Valid Query Store Configration for Model Database"{
-        @(Get-DbaQueryStoreConfig -SqlInstance $server -Database 'Model').ForEach{
-          $server = Connect-DbaInstance -SqlInstance $server 
-          $serverversion = $server.Version
-    
-          if ( $serverversion.major -ge 13 ){
-            It "Should have an OPERATION_MODE of ReadWrite on database $($psitem.Database)"{
-              $psitem.ActualState | Should -Be 'ReadWrite' -Because "We would like to have Query Store turned on if the instance and database supports it"
-            }
-            It "Should have an CLEANUP_POLICY = STALE_QUERY_THRESHOLD_DAYS = 367 on database $($psitem.Database)"{
-              $psitem.StaleQueryThresholdInDays | Should -Be 367 -Because "CLEANUP_POLICY = STALE_QUERY_THRESHOLD_DAYS = 367"
-            }        
-            It "Should have an DATA_FLUSH_INTERVAL_SECONDS = 9300 on database $($psitem.Database)"{
-              $psitem.DataFlushIntervalInSeconds | Should -Be 9300 -Because "DATA_FLUSH_INTERVAL_SECONDS = 9300"
-            }        
-            It "Should have an INTERVAL_LENGTH_MINUTES = 30 on database $($psitem.Database)"{
-              $psitem.StatisticsCollectionIntervalInMinutes | Should -Be 30 -Because "INTERVAL_LENGTH_MINUTES = 30"
-            }        
-            It "Should have an MAX_STORAGE_SIZE_MB = 1000 on database $($psitem.Database)"{
-              $psitem.MaxStorageSizeInMB | Should -Be 1000 -Because "MAX_STORAGE_SIZE_MB = 1000"
-            }        
-            It "Should have an QueryCaptureMode set to Auto on database $($psitem.Database)"{
-              $psitem.QueryCaptureMode | Should -Be 'Auto' -Because "QUERY_CAPTURE_MODE set to Auto"
-            }        
-          }
-        }
-      }
-  }
-  #>
-#>
