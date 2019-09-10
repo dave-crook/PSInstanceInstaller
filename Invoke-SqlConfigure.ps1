@@ -211,6 +211,7 @@ function Invoke-SqlConfigure {
 
         $Query += 'EXEC master.dbo.sp_MSsetalertinfo @failsafeoperator = N''Alerts''';
         $Query += 'EXEC master.dbo.sp_MSsetalertinfo @notificationmethod = 1';
+        $Query += "EXEC msdb.dbo.sp_set_sqlagent_properties @email_save_in_sent_folder=1,  @databasemail_profile=N`'Default`'";
         
         foreach ($line in $Query) {
             Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Query $line -EnableException

@@ -2,7 +2,8 @@
 #Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.38" }
 #Requires -RunAsAdministrator
 
-. .\Import-EnvironmentSettings.ps1
+
+. .\Import-LspEnvironmentSettings.ps1
 . .\Get-KeePassPassword.ps1
 . .\Test-AdCredential.ps1
 . .\Invoke-SqlConfigure.ps1
@@ -13,13 +14,15 @@
 . .\Set-PageFile.ps1
 . .\Add-SentryOne.ps1
 
+
 $Version = 2017
-$SqlInstance = 'DCP-VSQL-98'
+$SqlInstance = 'LSP-VSQL-01'
 $Features = @('ENGINE')
 $ServiceAccount = "SA-$SqlInstance"
 $password = Get-KeePassPassword -UserName $ServiceAccount -MasterKey $MasterKey -DatabaseProfileName $DatabaseProfileName -pKeePassEntryGroupPath $KeePassEntryGroupPath 
 $svcPassword = ConvertTo-SecureString -String $password -AsPlainText -Force
 $EngineCredential = $AgentCredential = New-Object System.Management.Automation.PSCredential("$ActiveDirectoryDomain\$ServiceAccount", $svcPassword)    
+$InstallationCredential = $InstallationCredential = Get-Credential -Message 'This is the account the installation will run as on the target SQL Server. Most likely your administrator login'
 
 $PreflightChecksResult = Invoke-Pester -Script @{ 
     Path = '.\Test-PreInstallationChecks.ps1' ; 

@@ -13,13 +13,17 @@ Param(
 . .\Test-ServiceAccountToGroup.ps1
 . .\Set-ServiceAccountToGroup.ps1
 
+
 Describe "Management Services" {
     Context "$SqlInstance`: CMBD Enrolled" {
         $cmdb_Servers = (Invoke-DbaQuery -SqlInstance $CMDBServer -Database 'DBA' -Query 'select ServerName from [dbo].[vw_ActiveServerList]').ServerName
-        It "Testing to see if this server exists in the CMDB on $CMDBServer" {
-            $cmdb_Servers | Should -Contain $SqlInstance -Because "We want this server to be registerd in the CMDB on $CMDBServer"
+        if ($cmdb_Servers -ne $CMDBServer){
+            It "Testing to see if this server exists in the CMDB on $CMDBServer" {
+                $cmdb_Servers | Should -Contain $SqlInstance -Because "We want this server to be registerd in the CMDB on $CMDBServer"
+            }
         }
     }
+    
     Context "$SqlInstance`: Registered in MSX" {
         $AgentConfiguration = (Get-DbaAgentServer -SqlInstance "$SqlInstance\$InstanceName" | Select-Object JobServerType, MsxServerName)
 
@@ -214,7 +218,7 @@ Describe "Ola Hallengren SP and Job Configuration" {
             ($jobs.Name | Where-Object { $_ -like "*DatabaseIntegrityCheck - USER_DATABASES" }) | Should -BeLike "*DatabaseIntegrityCheck - USER_DATABASES"
         }
         It 'Should have a Index Maintenance job for the ALL_DATABASES' {
-            ($jobs.Name | Where-Object { $_ -like "*IndexOptimize - ALL_DATABASES" }) | Should -BeLike "*IndexOptimize - ALL_DATABASES"           
+            ($jobs.Name | Where-Object { $_ -like "*IndexOptimize - ALL_DATABASES"}) | Should -BeLike "*IndexOptimize - ALL_DATABASES"
         }
     }
 
