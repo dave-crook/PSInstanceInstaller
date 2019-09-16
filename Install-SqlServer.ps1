@@ -2,7 +2,7 @@
 #Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.38" }
 #Requires -RunAsAdministrator
 
-
+#Local files to import functions from
 . .\Import-LspEnvironmentSettings.ps1
 . .\Get-KeePassPassword.ps1
 . .\Test-AdCredential.ps1
