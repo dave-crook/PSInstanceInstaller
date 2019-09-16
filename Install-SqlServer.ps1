@@ -2,7 +2,7 @@
 #Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.38" }
 #Requires -RunAsAdministrator
 
-#Local files to import functions from
+#region Dot sourcing of functions
 . .\Import-LspEnvironmentSettings.ps1
 . .\Get-KeePassPassword.ps1
 . .\Test-AdCredential.ps1
@@ -13,8 +13,9 @@
 . .\Set-ServiceAccountToGroup.ps1
 . .\Set-PageFile.ps1
 . .\Add-SentryOne.ps1
+#endregion
 
-
+#region Installation Variables
 $Version = 2017
 $SqlInstance = 'LSP-VSQL-01'
 $Features = @('ENGINE')
@@ -23,7 +24,9 @@ $password = Get-KeePassPassword -UserName $ServiceAccount -MasterKey $MasterKey 
 $svcPassword = ConvertTo-SecureString -String $password -AsPlainText -Force
 $EngineCredential = $AgentCredential = New-Object System.Management.Automation.PSCredential("$ActiveDirectoryDomain\$ServiceAccount", $svcPassword)    
 $InstallationCredential = $InstallationCredential = Get-Credential -Message 'This is the account the installation will run as on the target SQL Server. Most likely your administrator login'
+#endregion
 
+#region Pre-flight checks
 $PreflightChecksResult = Invoke-Pester -Script @{ 
     Path = '.\Test-PreInstallationChecks.ps1' ; 
     Parameters = @{
@@ -38,7 +41,9 @@ $PreflightChecksResult = Invoke-Pester -Script @{
 if ( $PreflightChecksResult.FailedCount -gt 0 ){
     Write-Output "FAILED: Preflight checks failed please ensure pester test passes" -ErrorAction Stop
 }
+#endregion
 
+#region Installation Execution
 $InstallationResult = Install-DbaInstance `
     -SqlInstance $SqlInstance `
     -Path $InstallationSources[$Version] `
@@ -63,7 +68,12 @@ $InstallationResult
 if ( -Not ($InstallationResult.Successful )){
     Write-Output "FAILED: Installation on $SqlInstance failed. Examine the installation log at $($InstallationResult.LogFile) on the target server." -ErrorAction Stop
 }
+#endregion
 
+#region Instance Configuration
 Invoke-SqlConfigure -SqlInstance $SqlInstance 
+#endregion
 
+#region Post installation checks
 Invoke-Pester -Script @{ Path = '.\Test-PostInstallationChecks.ps1' ; Parameters = @{ SqlInstance = $SqlInstance; } }
+#endregion
