@@ -19,6 +19,7 @@
 $Version = 2017
 $SqlInstance = 'LSP-VSQL-01'
 $Features = @('ENGINE')
+$Configuration = @{ UpdateSource = $UpdateSources[$Version]; BROWSERSVCSTARTUPTYPE = "Automatic"}
 $ServiceAccount = "SA-$SqlInstance"
 $password = Get-KeePassPassword -UserName $ServiceAccount -MasterKey $MasterKey -DatabaseProfileName $DatabaseProfileName -pKeePassEntryGroupPath $KeePassEntryGroupPath 
 $svcPassword = ConvertTo-SecureString -String $password -AsPlainText -Force
@@ -58,7 +59,7 @@ $InstallationResult = Install-DbaInstance `
     -EngineCredential $EngineCredential `
     -AgentCredential $AgentCredential `
     -Credential $InstallationCredential `
-    -Configuration @{ UpdateSource = $UpdateSources[$Version] } `
+    -Configuration $Configuration `
     -PerformVolumeMaintenanceTasks `
     -Restart `
     -Confirm:$false -Verbose

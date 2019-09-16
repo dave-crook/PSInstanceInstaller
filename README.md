@@ -19,25 +19,23 @@ The installation process is driven from the script `Install-SqlServer.ps1`. I pl
 
 Each of the following aligns with a code `region` in the `Install-SqlServer.ps1`
 
-1. Requires - Pester 4.8.1, dbatools 1.0.38, and the enviroment running the script needs to be run as administrator, VSCode, ISE or PowerShell prompt.
-1. Dot Sourcing of functions - currently all custom function implementations are in ps1 files in the directory and need to be imported. 
-1. Installation variables - This is where you'll set the settings specific to the server you're installating
-    1. `$version` - This is an integer for the version of SQL you're installtion. `2012`, `2014`, `2016`, `2017` are accepted.
+1. __Requires__ - Pester 4.8.1, dbatools 1.0.38, and the enviroment running the script needs to be run as administrator, VSCode, ISE or PowerShell prompt.
+1. __Dot Sourcing of functions__ - currently all custom function implementations are in ps1 files in the directory and need to be imported. 
+1. __Installation variables__ - This is where you'll set the settings specific to the server you're installating
+    1. `$version` - This is an integer for the version of SQL you're installation. `2012`, `2014`, `2016`, `2017` are accepted.
     1. `$SqlInstance` - The computer name of the server that you're installing SQL server on.
-    1. `$Features` - Array of Features to install. Options are SQLEngine, AS, RS, IS and others. Same as those if you where doing this at the command line. See [this](https://docs.microsoft.com/en-us/sql/database-engine/install-windows/install-sql-server-from-the-command-prompt?view=sql-server-2017#Feature) for all of the options available. For additional installatoin configuration parameters, for example if you want to add an Analysis Services Service account, that will need to be added to the `-Configuration` Hash Table around line 61. 
-    ```
-    @{ UpdateSource = $UpdateSources[$Version]; 
-       ASSVCACCOUNT = 'svcAccountName';  
-       ASSVCPASSWORD = 'ASecureAPassword'; 
-       } 
-    ```
+    1. `$Features` - Array of Features to install. Options are SQLEngine, AS, RS, IS and others. Same as those if you where doing this at the command line. See [this](https://docs.microsoft.com/en-us/sql/database-engine/install-windows/install-sql-server-from-the-command-prompt?view=sql-server-2017#Feature) for all of the options available. 
+    1. `$Configuration` - For additional install options that aren't part of surfaced as parameters in the dbatools cmdlet, they can be added to this Hash Table around line 61. In the example below, I'm setting the Update Source for patches and the Browser to Automatic. See [this](https://docs.microsoft.com/en-us/sql/database-engine/install-windows/install-sql-server-from-the-command-prompt?view=sql-server-2017#Feature) for all of the options available.     
+        ```
+        $Configuration = @{ UpdateSource = $UpdateSources[$Version]; BROWSERSVCSTARTUPTYPE = "Automatic"}
+        ```      
     1. `$ServiceAccount` - The service account for the Database Engine and the SQL Server Agent Services.
     1. `$password` - the service account's password retrieved from KeePass
     1. `$svcPassword` - the service account's password retrieved from KeePass, converted to a `Secure-String`
     1. `$EngineCredential` - A `PSCredential` used to the Engine and Agent services.
     1. `$InstallationCredential` - 
 
-1. Pre-flight Checks
-1. Installation Execution
-1. Instance Configuration
-1. Post Installation Checks
+1. __Pre-flight Checks__ - a Pester test that checks to ensure the server is online, the service account it valid, the required drives are online and available, the installation share exists, and the update sources directory exists. 
+1. __Installation Execution__ - this is the parameterized dbatools cmdlet to install SQL Server. Generally this shouldn't need to be edited. You may want to update the -Configuration parameter as described aboce 
+1. __Instance Configuration__ - 
+1. __Post Installation Checks__ - 
