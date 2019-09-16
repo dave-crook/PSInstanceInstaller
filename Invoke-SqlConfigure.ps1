@@ -144,7 +144,7 @@ function Invoke-SqlConfigure {
                 Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
             }
             else{
-                Write-Output 'hete'
+                Write-Output 'Server already registered as a Target'
             }
             Install-SqlCertificate -ServerName $SqlInstance
         }    

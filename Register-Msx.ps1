@@ -11,6 +11,14 @@ function Register-Msx{
     try {
         Write-Verbose "Attempting to register target $TargetServer on MSX $MSXServer."
 
+        $Query = "SELECT server_name FROM msdb.dbo.systargetservers WHERE server_name = '$TargetServer'"
+        $server = Invoke-DbaQuery -SqlInstance $MSXServer -Query $Query
+
+        if ( $server ){
+            Write-Error "A server with the same name exists in msdb.dbo.systargetservers on $MSXServer"
+            exit
+        }
+
         $TargetFQDN = ([System.Net.Dns]::GetHostByName($TargetServer)).HostName
         $MSXFQDN = ([System.Net.Dns]::GetHostByName($MSXServer)).HostName
         

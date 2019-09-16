@@ -79,4 +79,4 @@ Invoke-SqlConfigure -SqlInstance $SqlInstance
 
 #region Post installation checks
 Invoke-Pester -Script @{ Path = '.\Test-PostInstallationChecks.ps1' ; Parameters = @{ SqlInstance = $SqlInstance; } }
-#endregion
+#endregion 

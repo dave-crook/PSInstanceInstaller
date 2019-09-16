@@ -16,7 +16,7 @@ Param(
 
 Describe "Management Services" {
     Context "$SqlInstance`: CMBD Enrolled" {
-        $cmdb_Servers = (Invoke-DbaQuery -SqlInstance $CMDBServer -Database 'DBA' -Query 'select ServerName from [dbo].[vw_ActiveServerList]').ServerName
+        $cmdb_Servers = (Invoke-DbaQuery -SqlInstance $CMDBServer -Database 'DBA' -Query 'select ServerName from [dbo].[SQLServer]').ServerName
         if ($cmdb_Servers -ne $CMDBServer){
             It "Testing to see if this server exists in the CMDB on $CMDBServer" {
                 $cmdb_Servers | Should -Contain $SqlInstance -Because "We want this server to be registerd in the CMDB on $CMDBServer"
