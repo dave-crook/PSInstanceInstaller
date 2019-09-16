@@ -61,15 +61,15 @@ Each of the following bullets aligns with a code `region` in the `Install-SqlSer
     1. Windows Power Plan set to High Performance
 
 
-    ## Performing an Installation
-    1. Launch your environment as administrator
-    1. Set the `$Environment` variable to your datacenter location
-    1. Edit the `Installation Variables` Region in the `Install-SqlServer.ps1` script to the appropriate settings for your installation. Likely the only change will be `$SqlInstance`
-    1. Run the code regions in order, I've been high lighting the code then right click, run selection.
-        1. Requires
-        1. Dot Source Functions
-        1. Installation Variables
-        1. Pre-flight Checks
-        1. Installation Execution
-        1. Instance Configuration
-        1. Post Installation Checks 
+## Performing an Installation
+1. Launch your environment as administrator
+1. Set the `$Environment` variable to your datacenter location
+1. Edit the `Installation Variables` Region in the `Install-SqlServer.ps1` script to the appropriate settings for your installation. Likely the only change will be `$SqlInstance`
+1. Run the code regions in order, I've been high lighting the code then right click, run selection.
+    1. Requires
+    1. Dot Source Functions
+    1. Installation Variables
+    1. Pre-flight Checks
+    1. Installation Execution
+    1. Instance Configuration
+    1. Post Installation Checks 
