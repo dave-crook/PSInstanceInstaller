@@ -1,9 +1,7 @@
 ﻿# PSInstanceInstaller
 
-Documentation and stuff can go here...
-
 # Installation Prerequisites
-To use PsInstanceInstaller the workstation that you are performing the installatoin from will need the following 
+To use `PsInstanceInstaller` the workstation that you are performing the installatoin from will need the following 
 
 1. [Git Desktop](https://desktop.github.com/) - Not required but will make life easier on updating the repository
 1. [Installation Code](https://github.com/nocentino/PSInstanceInstaller) - A copy of this repositoriy pulled locally
@@ -36,6 +34,27 @@ Each of the following aligns with a code `region` in the `Install-SqlServer.ps1`
     1. `$InstallationCredential` - 
 
 1. __Pre-flight Checks__ - a Pester test that checks to ensure the server is online, the service account it valid, the required drives are online and available, the installation share exists, and the update sources directory exists. 
-1. __Installation Execution__ - this is the parameterized dbatools cmdlet to install SQL Server. Generally this shouldn't need to be edited. You may want to update the -Configuration parameter as described aboce 
-1. __Instance Configuration__ - 
-1. __Post Installation Checks__ - 
+1. __Installation Execution__ - this is the parameterized dbatools cmdlet to install SQL Server. Generally this shouldn't need to be edited as all parameters are set in the `Installation Variables` code region
+1. __Instance Configuration__ - This is the post instance configuration tasks. The following items are performed
+    1. Page file configuration
+    1. Add SQL Management to local administrators
+    1. Add SQL Management to sysadmins fixed server role
+    1. Disable the sa login
+    1. Insert the instance into the CMDB
+    1. Test and Set the SPN configuration
+    1. Install sp_whoisactive
+    1. Install Ola's scripts
+    1. Set instance trace flages 3226 on all versions, 1117,1118,3226 on instances before 2016.
+    1. Enable Remote DAC
+    1. Enable Optimize for Ad-Hoc workloads
+    1. Enroll in CSM and MSX
+    1. Configure TempDB - Fixed growth 1GB. 8 total data files
+    1. Configure Model - Fixed growth - 512MB for data and log
+    1. Enable and configure Database Mail
+    1. Configure SQL Server Agent Settings - History, Mail Profile, Failsafe Operators, Operators, Alerts, Deploy standard maintenance jobs
+    1. Add Instance to SentryOne
+
+1. __Post Installation Checks__ - Pester check to ensure all settings in the 'Instance Configuration' phase are actually set. And the following additional checks...
+   
+    1. If the instance has been online for longer than a week have maintenance jobs run
+    1. Windows Power Plan set to High Performance
