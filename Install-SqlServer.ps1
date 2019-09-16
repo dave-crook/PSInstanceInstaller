@@ -2,8 +2,10 @@
 #Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.38" }
 #Requires -RunAsAdministrator
 
+
 #region Dot sourcing of functions
-. .\Import-LspEnvironmentSettings.ps1
+$Environment = 'DC2'
+. .\Import-EnviromentSettings.ps1 -DataCenter $Environment
 . .\Get-KeePassPassword.ps1
 . .\Test-AdCredential.ps1
 . .\Invoke-SqlConfigure.ps1
@@ -17,14 +19,14 @@
 
 #region Installation Variables
 $Version = 2017
-$SqlInstance = 'LSP-VSQL-01'
+$SqlInstance = 'DCD-VSQL-55'
 $Features = @('ENGINE')
 $Configuration = @{ UpdateSource = $UpdateSources[$Version]; BROWSERSVCSTARTUPTYPE = "Automatic"}
 $ServiceAccount = "SA-$SqlInstance"
+$InstallationCredential = $InstallationCredential = Get-Credential -Message 'This is the account the installation will run as on the target SQL Server. Most likely your administrator login'
 $password = Get-KeePassPassword -UserName $ServiceAccount -MasterKey $MasterKey -DatabaseProfileName $DatabaseProfileName -pKeePassEntryGroupPath $KeePassEntryGroupPath 
 $svcPassword = ConvertTo-SecureString -String $password -AsPlainText -Force
 $EngineCredential = $AgentCredential = New-Object System.Management.Automation.PSCredential("$ActiveDirectoryDomain\$ServiceAccount", $svcPassword)    
-$InstallationCredential = $InstallationCredential = Get-Credential -Message 'This is the account the installation will run as on the target SQL Server. Most likely your administrator login'
 #endregion
 
 #region Pre-flight checks
