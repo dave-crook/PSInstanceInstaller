@@ -14,6 +14,7 @@ Param(
 . .\Set-ServiceAccountToGroup.ps1
 
 
+
 Describe "Management Services" {
     Context "$SqlInstance`: CMBD Enrolled" {
         $cmdb_Servers = (Invoke-DbaQuery -SqlInstance $CMDBServer -Database 'DBA' -Query 'select ServerName from [dbo].[SQLServer]').ServerName
