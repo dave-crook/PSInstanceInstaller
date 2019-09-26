@@ -43,10 +43,10 @@ $SmtpRelay = 'relay.polsinelli.com'
 $InstallRoot = "\\DCP-VSQL-01\INSTALLS"
 
 $InstallationSources = @{
-    2012 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2012_enterprise_edition_with_sp_3_x64_dvd_7286819"
-    2014 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2014_enterprise_edition_with_service_pack_2_x64_dvd_8962401"
-    2016 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2016_enterprise_with_service_pack_1_x64_dvd_9542382"
-    2017 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2017_enterprise_x64_dvd_11293666"
+    2012 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2012_enterprise_edition_with_service_pack_4"
+    2014 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2014_enterprise_edition_with_service_pack_3"
+    2016 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2016_enterprise_with_service_pack_2"
+    2017 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2017_enterprise"
 }
 
 #Location of update sources for each version of SQL Server. Directory should contain the latest CU we've standardized on.
