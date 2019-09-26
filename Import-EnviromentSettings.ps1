@@ -1,6 +1,6 @@
 Param(
     [Parameter(Mandatory=$True)]
-    [ValidateSet('DC1','DC2','LSP')]
+    [ValidateSet('DC1','DC2','LSP','LAB')]
     [String]   $DataCenter)
 try{
     if ( $DataCenter -eq 'DC1' ){
@@ -14,6 +14,10 @@ try{
     if ( $DataCenter -eq 'LSP' ){
         Write-Output "Loading $DataCenter Environment Settings"
         . .\Import-LspEnvironmentSettings.ps1
+    }
+    if ( $DataCenter -eq 'LAB' ){
+        Write-Output "Loading $DataCenter Environment Settings"
+        . .\Import-LabEnvironmentSettings.ps1
     }
 }
 catch{

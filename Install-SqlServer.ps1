@@ -19,7 +19,7 @@ $Environment = 'DC2'
 
 #region Installation Variables
 $Version = 2017
-$SqlInstance = 'DCD-VSQL-55'
+$SqlInstance = 'DBASQL3'
 $Features = @('ENGINE')
 $Configuration = @{ UpdateSource = $UpdateSources[$Version]; BROWSERSVCSTARTUPTYPE = "Automatic"}
 $ServiceAccount = "SA-$SqlInstance"
@@ -43,6 +43,11 @@ $PreflightChecksResult = Invoke-Pester -Script @{
 
 if ( $PreflightChecksResult.FailedCount -gt 0 ){
     Write-Output "FAILED: Preflight checks failed please ensure pester test passes" -ErrorAction Stop
+}
+
+#2014 requires .NET 3.5 still...:(
+if ( $Version -eq 2014){
+    Invoke-Command -ComputerName $SqlInstance -ScriptBlock { Install-WindowsFeature Net-Framework-Core  }
 }
 #endregion
 
