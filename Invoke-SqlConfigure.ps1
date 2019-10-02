@@ -249,5 +249,15 @@ function Invoke-SqlConfigure {
     else{
         Write-Output "$SqlInstance already in SentryOne"
     }
+
+     if ($InstanceName -ne 'MSSQLSERVER'){
+                $instance = Get-Connection -ConnectionType 'SqlServer' | Where-Object { $_.ServerName -like "$ServerName*" } 
+            }
+            else{
+                $instance = Get-Connection -ConnectionType 'SqlServer' | Where-Object { $_.ServerName -like "$ServerName*" -and $_.InstanceName -like "$InstanceName*" }
+            }
+            if ($instance){
+                $PerformanceAdvisor = ($instance.WatchedBy).ToString().Split().Replace(',','')
+            }
     #region
 }
