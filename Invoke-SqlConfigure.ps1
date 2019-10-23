@@ -15,6 +15,9 @@ function Invoke-SqlConfigure {
         Write-Output "Page file in desired state"
         $PageFileSettings
     }
+
+    #Set the instance power plan
+    Set-DbaPowerPlan -ComputerName $SqlInstance -PowerPlan 'High Performance'
     #end region
 
     #region SQL Management
@@ -118,6 +121,14 @@ function Invoke-SqlConfigure {
         Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name  'optimize for ad hoc workloads' -Value 1 
     }
 
+    #Configure MAXDOP to best practice
+    Set-DbaMaxDop -SqlInstance "$SqlInstance\$InstanceName"
+
+    #Configure max server memory to best practice
+    Set-DbaMaxMemory -SqlInstance "$SqlInstance\$InstanceName"
+
+    #Set CTOP to initial value of 50
+    Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName"  -Name 'cost threshold for parallelism' -Value 50
 
     #Enroll in CMS/MSX
     try {

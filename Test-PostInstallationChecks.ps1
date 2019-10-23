@@ -63,12 +63,13 @@ foreach ($pSqlInstance in $SqlInstance) {
 
         Context "$pSqlInstance`: Registered in SentryOne" {
             Import-Module "C:\Program Files\SentryOne\19.0\Intercerve.SQLSentry.Powershell.psd1"
+
             #If the instance is using the default instance name 
-            if ($InstanceName -ne 'MSSQLSERVER'){
-                $instance = Get-Connection -ConnectionType 'SqlServer' | Where-Object { $_.ServerName -like "$ServerName*" } 
+            if ($InstanceName -eq 'MSSQLSERVER'){
+                $instance = (Get-Connection -ConnectionType 'SqlServer' | Where-Object { $_.ServerName -like "$ServerName*" } )
             }
             else{
-                $instance = Get-Connection -ConnectionType 'SqlServer' | Where-Object { $_.ServerName -like "$ServerName*" -and $_.InstanceName -like "$InstanceName*" }
+                $instance = (Get-Connection -ConnectionType 'SqlServer' | Where-Object { $_.ServerName -like "$ServerName*" -and $_.InstanceName -like "$InstanceName*" })
             }
             if ($instance){
                 $PerformanceAdvisor = ($instance.WatchedBy).ToString().Split().Replace(',','').Trim()
@@ -336,10 +337,10 @@ foreach ($pSqlInstance in $SqlInstance) {
     Describe "Test for Instance Level Settings" {
         Context "$pSqlInstance`: Memory Configuration" {
             $Memory = (Test-DbaMaxMemory -SqlInstance "$pSqlInstance")
-            $RecommendedMB = $Memory.RecommendedMB
-            $SqlMaxMB = $Memory.SqlMaxMB
-            It "Checking the Max Memory setting for the instance" {
-                $SqlMaxMB | Should -Be $RecommendedMB
+            $RecommendedValue = ($Memory.RecommendedValue)
+            $MaxValue = ($Memory.MaxValue)
+            It "Checking the Max Memory setting for the instance should be $RecommendedValue" {
+                $MaxValue | Should -Be $RecommendedValue
             }  
         }
         Context "$pSqlInstance`: MaxDOP Configuration" {
@@ -472,7 +473,7 @@ foreach ($pSqlInstance in $SqlInstance) {
     }
 
     Describe "Windows Settings" {
-        Context "$pSqlInstance`: High Performance Powerplan" {        
+        Context "$pSqlInstance`: High Performance PowerPlan" {        
             $dbapp = Test-DbaPowerPlan -ComputerName $pSqlInstance
             try {
                 It "Checking if the Windows PowerPlan is set to High Performance" {
@@ -480,7 +481,7 @@ foreach ($pSqlInstance in $SqlInstance) {
                 }
             }
             catch {
-                Write-Warning -Message "Setting Powerplan to High Performance"
+                Write-Warning -Message "Setting PowerPlan to High Performance"
                 if ( $remediate ) {
                     Set-DbaPowerPlan -ComputerName $pSqlInstance -PowerPlan "High Performance"
                 }

@@ -19,8 +19,8 @@ $Environment = 'DC2'
 
 #region Installation Variables
 $Version = 2016
-$SqlInstance = 'DCD-VSQL-99'
-$Features = @('ENGINE')
+$SqlInstance = 'DCP-VSQL-100'
+$Features = @('ENGINE','IntegrationServices')
 $Configuration = @{ UpdateSource = $UpdateSources[$Version]; BROWSERSVCSTARTUPTYPE = "Automatic"; SQLCOLLATION = "Latin1_General_CI_AI"}
 $ServiceAccount = "SA-$SqlInstance"
 $InstallationCredential = $InstallationCredential = Get-Credential -Message 'This is the account the installation will run as on the target SQL Server. Most likely your administrator login'
@@ -65,6 +65,7 @@ $InstallationResult = Install-DbaInstance `
     -AdminAccount $AdminAccount `
     -EngineCredential $EngineCredential `
     -AgentCredential $AgentCredential `
+    -ISCredential $AgentCredential `
     -Credential $InstallationCredential `
     -Configuration $Configuration `
     -PerformVolumeMaintenanceTasks `
