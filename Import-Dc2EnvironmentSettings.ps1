@@ -47,6 +47,7 @@ $InstallationSources = @{
     2014 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2014_enterprise_edition_with_service_pack_3"
     2016 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2016_enterprise_with_service_pack_2"
     2017 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2017_enterprise"
+    2019 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2019_enterprise"
 }
 
 #Location of update sources for each version of SQL Server. Directory should contain the latest CU we've standardized on.
@@ -55,4 +56,5 @@ $UpdateSources = @{
     2014 = "$InstallRoot\SQL Server Update Files\2014Updates"
     2016 = "$InstallRoot\SQL Server Update Files\2016Updates"
     2017 = "$InstallRoot\SQL Server Update Files\2017Updates"  
+    2019 = "$InstallRoot\SQL Server Update Files\2019Updates"  
 }

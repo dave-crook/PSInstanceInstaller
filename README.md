@@ -1,15 +1,31 @@
 ﻿# PSInstanceInstaller
 
 # Installation Prerequisites
-To use `PsInstanceInstaller` the workstation that you are performing the installatoin from will need the following 
+To use `PsInstanceInstaller` the workstation that you are performing the installation from will need the following 
 
 1. [Git Desktop](https://desktop.github.com/) - Not required but will make life easier on updating the repository
 1. [Installation Code](https://github.com/nocentino/PSInstanceInstaller) - A copy of this repositoriy pulled locally
 1. PowerShell 5.1 - included in Windows 2012R2+
 1. [dbatool](https://dbatools.io/) 1.0.38 - Open Powershell 5.1 in administrator mode. Other versions may work, this is the version tested.
-    1. New installation `Install-Module -Name dbatools -RequiredVersion 1.0.38`
-    1. Update existing installlation `Update-Module dbatools`
+    1. New installation 
+        ```
+        Install-Module -Name dbatools -RequiredVersion 1.0.38
+        ```
+    1. Update existing installlation 
+        ```
+        Update-Module dbatools
+        ```
 1. Pester 4.8.1+ [Follow the directions here to update Pester.](https://github.com/pester/Pester/wiki/Installation-and-Update#installing-from-psgallery-windows-10-or-windows-server-2016) There is a version of Pester included with Windows, but its super old and needs to be updated. This has to be updated as Pester v3 and v4 are very differnt.
+1. Sentry One Client Version 19 - You'll need the desktop client installed to load the PowerShell module. If the version of S1 changes, we'll need to update Add-SentryOne.ps1 to load the new module version.
+1. PoShKeePass module
+    1. To Install
+        ```
+        Install-Module PoShKeePass
+        ```
+    1. To configure PoShKeePass
+        ```
+        New-KeePassDatabaseConfiguration -DatabaseProfileName 'NetworkTeamPasswordVault' -DatabasePath "\\dc1-file-01\infrastructure$\KeePass\NetworkTeamPasswordVault.kdbx" –UseMasterKey
+        ```
 
 # Overview of the Installation Process
 
@@ -27,7 +43,15 @@ Each of the following bullets aligns with a code `region` in the `Install-SqlSer
     1. `$Configuration` - For additional install options that aren't surfaced as parameters in the dbatools cmdlet, they can be added to this Hash Table around line 61. In the example below, I'm setting the Update Source for patches and the Browser to Automatic. See [this](https://docs.microsoft.com/en-us/sql/database-engine/install-windows/install-sql-server-from-the-command-prompt?view=sql-server-2017#Feature) for all of the available options available.     
         ```
         $Configuration = @{ UpdateSource = $UpdateSources[$Version]; BROWSERSVCSTARTUPTYPE = "Automatic"}
-        ```      
+        ```
+        1. Here is an example of adding additional configuration parameters to Configure Analysis Services
+        ```
+        $Configuration = @{ UpdateSource = $UpdateSources[$Version]; BROWSERSVCSTARTUPTYPE = "Automatic"; ASSYSADMINACCOUNTS = "Polsinelli\Database Engineers"}
+        ```
+        1. Here is an example to configure a custom collation
+        ```
+        $Configuration = @{ UpdateSource = $UpdateSources[$Version]; BROWSERSVCSTARTUPTYPE = "Automatic"; SQLCOLLATION = "Latin1_General_CI_AI"}
+        ```
     1. `$ServiceAccount` - The service account for the Database Engine and the SQL Server Agent Services.
     1. `$InstallationCredential` - This is YOUR login. You will be prompted to enter your username and password. Use the DOMAIN\USERNAME format.
     1. `$password` - the service account's password retrieved from KeePass
