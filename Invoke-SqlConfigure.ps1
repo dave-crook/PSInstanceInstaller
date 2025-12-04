@@ -1,30 +1,47 @@
-function Invoke-SqlConfigure {
+
+function ConfigurePageFile {
     Param(
-        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
-        [String]   $InstanceName = "MSSQLSERVER"
+        [Parameter(Mandatory = $True)] [String]   $SqlInstance
     )
 
-    #region Windows Configuration
+    Write-Output "Configuring page file"
+
     $PageFileLocation = 'F:\'
     $PageFileSize = 8192
+
+    if ($PageFileSettings -eq $null) {
+        Write-Warning "WARNING - Couldn't get page file settings!"
+        return
+    }
+
     $PageFileSettings = Get-DbaPageFileSetting -ComputerName $SqlInstance
     if ( $PageFileSettings.FileName -notlike "$PageFileLocation*" -or $PageFileSettings.InitialSize -ne $PageFileSize  -or $PageFileSettings.MaximumSize -ne $PageFileSize  ){
+        Write-Verbose "Setting page file size"
         Set-PageFile -ComputerName $SqlInstance -Location $PageFileLocation -InitialSize $PageFileSize -MaximumSize $PageFileSize        
     }
     else{
         Write-Output "Page file in desired state"
         $PageFileSettings
     }
+}
 
-    #Set the instance power plan
-    Set-DbaPowerPlan -ComputerName $SqlInstance -PowerPlan 'High Performance'
-    #end region
+function AddSqlManagementToLocalAdmin {
+    Param(
+        [Parameter(Mandatory = $True)] [String]   $SqlInstance
+    )
 
-    #region SQL Management
+    Write-Output "Adding SQLManagement to local admin"
+
     #Add "SQL Management Group to local administrators, this is for CommVault access to the server"
-    $group = Invoke-Command -ComputerName $SqlInstance -ScriptBlock { Get-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement } 
+    $group = $null
     try {
-        if ( $group.Name -notcontains $SQLManagement  ) {
+        $group = Invoke-Command -ComputerName $SqlInstance -ScriptBlock { Get-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement }  -ErrorAction Ignore
+    }
+    catch {
+    }
+
+    try {
+        if ($null -eq $group -or ($group.Name -notcontains $SQLManagement)) {
             Write-Verbose "Adding $($group.Name) to Local Adminstrators group on $servername"
             Invoke-Command -ComputerName $SqlInstance -ScriptBlock { Add-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement }
         }
@@ -37,18 +54,104 @@ function Invoke-SqlConfigure {
     }
 
     try{
-        New-DbaLogin -SqlInstance "$SqlInstance\$InstanceName" -Login $SQLManagement
+        New-DbaLogin -SqlInstance "$SqlInstance\$InstanceName" -Login $SQLManagement -WarningAction SilentlyContinue
         Set-DbaLogin -SqlInstance "$SqlInstance\$InstanceName" -Login $SQLManagement -AddRole sysadmin
     }
     catch{
         Write-Error "Error creating the login for $SQLManagement and adding it to the sysadmin server role: $_"
     }
+}
 
+
+# chatgpt rewrite of Add-SqlManagementToLocalAdmin.  Test this next time.
+function Add-SqlManagementToLocalAdmin2 {
+    [CmdletBinding(SupportsShouldProcess)]
+    Param(
+        [Parameter(Mandatory)] [string] $SqlInstance,      # target Windows host name
+        [Parameter(Mandatory)] [string] $SQLManagement,    # e.g. 'DOMAIN\SQLManagement'
+        [string] $InstanceName                             # optional named SQL instance
+    )
+
+    Write-Verbose "Target host: $SqlInstance; SQL group: $SQLManagement; Instance: $InstanceName"
+
+    # Quick connectivity sanity check (helps distinguish WinRM/name issues)
+    try {
+        Test-WSMan -ComputerName $SqlInstance -ErrorAction Stop | Out-Null
+    } catch {
+        throw "Cannot reach WinRM on '$SqlInstance'. Check name resolution, firewall, or WinRM configuration. Details: $($_.Exception.Message)"
+    }
+
+    Write-Output "Adding $SQLManagement to local Administrators on $SqlInstance"
+
+    # Do everything related to local group membership inside one remote hop
+    $script = {
+        param($SqlMgmt)
+        $group = 'Administrators'
+
+        # Function to attempt the add once
+        $attempt = {
+            $existing = Get-LocalGroupMember -Group $group -Member $SqlMgmt -ErrorAction SilentlyContinue
+            if (-not $existing) {
+                Add-LocalGroupMember -Group $group -Member $SqlMgmt -ErrorAction Stop
+                "Added '$SqlMgmt' to '$group'."
+            } else {
+                "'$SqlMgmt' already in '$group'."
+            }
+        }
+
+        try {
+            & $attempt
+        } catch {
+            # Some environments briefly fail to resolve the domain principal; retry once after a short wait
+            Start-Sleep -Seconds 2
+            try {
+                & $attempt
+            } catch {
+                throw "Failed to add '$SqlMgmt' to '$group' on $env:COMPUTERNAME. $_"
+            }
+        }
+    }
+
+    try {
+        Invoke-Command -ComputerName $SqlInstance -ScriptBlock $script -ArgumentList $SQLManagement -ErrorAction Stop | Write-Verbose
+    } catch {
+        throw "Error adding '$SQLManagement' to local Administrators on '$SqlInstance': $($_.Exception.Message)"
+    }
+
+    # Build the SQL connection target safely
+    $targetInstance = if ($InstanceName) { "$SqlInstance\$InstanceName" } else { $SqlInstance }
+
+    # Create the SQL login and grant sysadmin using dbatools (assumes module is present on the caller)
+    try {
+        Write-Output "Ensuring SQL login exists and is sysadmin on $targetInstance"
+        # New-DbaLogin will no-op if the login already exists (unless -Force), but we�ll swallow benign warnings
+        New-DbaLogin -SqlInstance $targetInstance -Login $SQLManagement -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null
+        Set-DbaLogin -SqlInstance $targetInstance -Login $SQLManagement -AddRole sysadmin -ErrorAction Stop | Out-Null
+    } catch {
+        throw "Error creating/granting SQL login for '$SQLManagement' on '$targetInstance': $($_.Exception.Message)"
+    }
+}
+
+function DisableSaLogin {
+    Param(
+        [Parameter(Mandatory = $True)]  [String] $SqlInstance,
+        [String] $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Disabling SA login"
 
     #Disable the sa login.
     Get-DbaLogin -SqlInstance "$SqlInstance\$InstanceName" | Where-Object { $_.Name -eq 'sa' } | Set-DbaLogin -Disable
+}
 
-    
+function InsertIntoCmdb {
+    Param(
+        [Parameter(Mandatory = $True)]  [String] $SqlInstance,
+        [String] $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Inserting into CMDB"
+
     #Insert this instance into the CMDB
     try {
         if ($InstanceName -ne 'MSSQLSERVER') {
@@ -62,9 +165,15 @@ function Invoke-SqlConfigure {
     catch {
         Write-Error "Error adding instance to CMDB: $_" 
     }
-    #endregion
+}
 
-    #region SPN Configuration
+function ConfigureSpn {
+    Param(
+        [Parameter(Mandatory = $True)] [String]   $SqlInstance
+    )
+
+    Write-Output "Configuring SPN"
+
     #Configure SPNs for use with a named SQL Server service account
     try {
         Test-DbaSpn -ComputerName $SqlInstance | Where-Object { $_.IsSet -eq $false } | Set-DbaSpn
@@ -72,9 +181,9 @@ function Invoke-SqlConfigure {
     catch {
         Write-Error "Error setting the SPN: $_"
     }
-    
+
     #if this is the primary configure the SPN for the AG listener
-    if ( $SqlInstance -eq $AGPrimary ) {
+    if ( $SqlInstance -eq $AGPrimary ) {  # $AGPrimary is not set in Install-SqlServer.ps1.  This will never be executed.
         try {
             $ListenerFQDN = ([System.Net.Dns]::GetHostByName($AGListener)).HostName
             Set-DbaSpn -SPN "MSSQLSvc/$ListenerFQDN" -ServiceAccount $ServiceAccount
@@ -84,20 +193,33 @@ function Invoke-SqlConfigure {
             Write-Error "Error setting the AG Listener's SPN: $_"
         }
     }
-    #endregion
+}
 
-    #region Tools Installation
-    #Expand-Archive -Path "\\dcp-vsql-01\Installs\Scripts\DSC_SQL_v2\who_is_active_v11_32.zip" -DestinationPath "\\dcp-vsql-01\Installs\Scripts\DSC_SQL_v2" -Force
-    #Install-DbaWhoIsActive -SqlInstance "$SqlInstance\$InstanceName" -Database "master" -LocalFile "\\dcp-vsql-01\Installs\Scripts\DSC_SQL_v2\who_is_active_v11_32.sql" #this deletes the sql file when done!   
-    Install-DbaWhoIsActive -SqlInstance "$SqlInstance\$InstanceName" -Database "master" 
-    
-    #Install and configure the maintenance scripts
-    Install-DbaMaintenanceSolution -SqlInstance "$SqlInstance\$InstanceName" -Database master -OutputFileDirectory 'C:\SqlAgentLogs'
-    
-    #endregion
+function RunSqlFiles {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
 
-    #region Instance Configuration
-    #Configure server wide trace flags
+    Write-Output "Running SQL files"
+
+    $sqlFiles = Get-ChildItem -Path "." -Filter "*.sql" 
+
+    foreach ($sqlFile in $sqlFiles) {
+        Write-Output "Running SQL file $sqlFile"
+        Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -File $sqlFile.FullName -EnableException
+    }
+    Write-Output "SQL files run complete"
+}
+
+function ConfigureTraceFlags {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Configuring trace flags"
+
     $TraceFlags = @(3226)
     if ($SqlVersion -lt 2016 ) {
         $TraceFlags += 1117
@@ -106,13 +228,22 @@ function Invoke-SqlConfigure {
     Write-Verbose "Enabling trace flags $TraceFlags"
     
     try {
-        Enable-DbaTraceFlag -SqlInstance "$SqlInstance\$InstanceName" -TraceFlag $TraceFlags
+        Enable-DbaTraceFlag -SqlInstance "$SqlInstance\$InstanceName" -TraceFlag $TraceFlags -WarningAction SilentlyContinue
         Set-DbaStartupParameter -SqlInstance "$SqlInstance\$InstanceName" -TraceFlag $TraceFlags -Confirm:$false
     }
     catch {
         Write-Error "Error enabling or setting the instance trace flags: $_"
     }
+}
 
+function SetSpConfigureOptions {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Setting SpConfigure options"
+  
     if ( (Get-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name  'remote admin connections').ConfiguredValue -ne 1) {
         Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name  'remote admin connections' -Value 1 
     }
@@ -121,59 +252,80 @@ function Invoke-SqlConfigure {
         Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name  'optimize for ad hoc workloads' -Value 1 
     }
 
-    #Configure MAXDOP to best practice
-    Set-DbaMaxDop -SqlInstance "$SqlInstance\$InstanceName"
-
-    #Configure max server memory to best practice
-    Set-DbaMaxMemory -SqlInstance "$SqlInstance\$InstanceName"
-
     #Set CTOP to initial value of 50
-    Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName"  -Name 'cost threshold for parallelism' -Value 50
+    Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName"  -Name 'cost threshold for parallelism' -Value 50 -WarningAction SilentlyContinue
+}
 
-    #Enroll in CMS/MSX
+function AddToCms {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Adding to CMS"
+
     try {
         if ( $InstanceName -ne 'MSSQLSERVER') {
             if ( -Not ( Get-DbaRegisteredServer -SqlInstance $SQLManagementServer | Where-Object { $_.Name -contains "$SqlInstance\$InstanceName" }  ) ) {
                 Add-DbaRegServer -SqlInstance $SQLManagementServer -ServerName "$SqlInstance\$InstanceName" -Group 'ALL' 
             }
-
-            $TargetServer = $null
-            $TargetServer = (Get-DbaAgentServer -SqlInstance $CMDBServer).TargetServers.Name | Where-Object { $_ -contains "$SqlInstance\$InstanceName" } 
-            if ( !$TargetServer ){
-                Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -InstanceName $InstanceName -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
-            }
-            Install-SqlCertificate -ServerName $SqlInstance -InstanceName $InstanceName
         }
         else {
             if ( -Not ( Get-DbaRegisteredServer -SqlInstance $SQLManagementServer | Where-Object { $_.Name -contains $SqlInstance } ) ) {
                 Add-DbaRegServer -SqlInstance $SQLManagementServer -ServerName $SqlInstance -Group 'ALL'
             }
+        }    
+    }
+    catch {
+        Write-Error "Error enrolling in CMS: $_"
+    }
+}
 
-            $TargetServer = $null
-            $TargetServer = (Get-DbaAgentServer -SqlInstance $CMDBServer).TargetServers.Name | Where-Object { $_ -contains "$SqlInstance" } 
-            if ( !$TargetServer ){
-                Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
-            }
-            else{
-                Write-Output 'Server already registered as a Target'
-            }
+function InstallSqlCertificate {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Installing SQL certificate"
+
+    try {
+        if ( $InstanceName -ne 'MSSQLSERVER') {
+            Install-SqlCertificate -ServerName $SqlInstance -InstanceName $InstanceName
+        }
+        else {
             Install-SqlCertificate -ServerName $SqlInstance
         }    
     }
     catch {
-        Write-Error "Error enrolling system in the CMS or MSX: $_"
+        Write-Error "Error installing certificate: $_"
     }
+}
 
-    #Configure TempDB
+function ConfigureTempDb {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Configuring tempdb"
+
     try {
         Set-DbaTempdbConfig -SqlInstance "$SqlInstance\$InstanceName" -DataFileCount 8 -DataFileSize 1024 -DataFileGrowth 1024 -LogFileSize 1024 -LogFileGrowth 1024 -DataPath 'T:\TEMPDB' -LogPath 'L:\LOGS' 
     }
     catch {
         Write-Error "Error applying TempDB configuration: $_"
     }
-    
+}
 
-    #Configure Model
+function ConfigureModelDatabase  {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Configuring model database"
+
     try {
         $modelrecoverymodel = Get-DbaDbRecoveryModel -SqlInstance "$SqlInstance\$InstanceName" -Database "MODEL"
         if ( $modelrecoverymodel.RecoveryModel -ne 'SIMPLE' ){
@@ -184,15 +336,24 @@ function Invoke-SqlConfigure {
         $Query = "ALTER DATABASE [model] MODIFY FILE ( NAME = N`'modellog`', FILEGROWTH = 512MB )"
         Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Query $Query -EnableException
 
-        Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Database "MASTER" -File ".\2-querystore.sql"  -EnableException
+        Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Database "MASTER" -File ".\2-querystore.sql" -EnableException
+        
+
         #Set-DbaDbQueryStoreOption -SqlInstance "$SqlInstance\$InstanceName" -Database 'MODEL' -State ReadWrite -FlushInterval 900 -CollectionInterval 30 -MaxSize 1000 -CaptureMode Auto -CleanupMode Auto -StaleQueryThreshold 367
     }
     catch {
         Write-Error "Error configuring the model database: $_"
     }
-    #endregion
-    
-    #region Database Mail Configuration
+}
+
+function ConfigureDatabaseMail {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Configuring database mail"
+
     try {
         if ( (Get-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name 'Database Mail XPs').ConfiguredValue -ne 1) {
             Set-DbaSpConfigure -SqlInstance "$SqlInstance\$InstanceName" -Name 'Database Mail XPs' -Value 1 
@@ -214,7 +375,7 @@ function Invoke-SqlConfigure {
 
         #Create the mail profile, create the Agent Operator and set the failsafe operator settings
         $Query = @()
-        $Query += 'EXEC msdb.dbo.sp_send_dbmail @profile_name = ''Default'', @recipients = ''dbengineering@polsinelli.com'', @subject = ''Test message'', @body = ''This is the body of the test message.'''
+        $Query += 'EXEC msdb.dbo.sp_send_dbmail @profile_name = ''Default'', @recipients = ''dbengineering@polsinelli.com'', @subject = ''SQL installed successfully'', @body = ''SQL installed successfully.  This is a test of sp_send_dbmail.'''
 
         if (  -Not (Get-DbaAgentOperator -SqlInstance "$SqlInstance\$InstanceName" -Operator 'Alerts') ){
             $Query += 'EXEC msdb.dbo.sp_add_operator @name = N''Alerts'', @email_address = N''sqlalerts@polsinelli.com'''
@@ -231,44 +392,172 @@ function Invoke-SqlConfigure {
     catch {
         Write-Error "Error configuring database mail: $_"
     }
-    #endregion
+}
 
-    #region Configure Agent and Agent Alerts
-    #Configure Agent
+function RenameSaAccount {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Renaming SA account"
+
+    $sql = "USE [master]
+        DECLARE @new_sa_name VARCHAR(30) = 'dbe_internal'
+
+        IF (SELECT COUNT(*) FROM sys.server_principals WHERE name='sa' AND is_disabled=1) > 0
+        BEGIN
+	        PRINT('Renaming sa account on ' + @@SERVERNAME + ' to ' + @new_sa_name)
+	        DECLARE @cmd VARCHAR(100) = 'ALTER LOGIN sa WITH NAME = ' + @new_sa_name
+	        EXEC(@cmd)
+        END
+        ELSE
+        BEGIN
+	        DECLARE @sa_name VARCHAR(30)
+	        SELECT @sa_name = name FROM sys.server_principals WHERE sid = 0x01
+
+	        PRINT('sa account already renamed to ' + @sa_name + ' on ' + @@SERVERNAME)
+        END"
+
+        Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Query $sql -EnableException
+}
+
+function CreateLoginTrigger {
+ Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Creating login trigger"
+
+    $sql = "CREATE OR ALTER TRIGGER [TrgEnforceSecurity]
+        ON ALL SERVER WITH EXECUTE AS 'dbe_internal'
+        FOR CREATE_LOGIN, DROP_LOGIN, ADD_SERVER_ROLE_MEMBER, DROP_SERVER_ROLE_MEMBER
+        AS
+        BEGIN
+	           DECLARE @userName varchar(128); 
+	           SELECT @userName = EVENTDATA().value('(/EVENT_INSTANCE/LoginName)[1]', 'varchar(128)');
+
+	           IF @userName IN ('POLSINELLI\dacroadmin','POLSINELLI\minmoadmin')
+		          RETURN;
+
+               DECLARE @ExecStr VARCHAR(MAX);
+               DECLARE @EventData VARCHAR(MAX);
+               DECLARE @ErrorMsg VARCHAR(MAX);
+
+               -- Print warning to user   
+               PRINT 'This SQL statement issued in violation of IT policy.  ALL database security changes must be sent to the Database Engineering team.';
+               PRINT '';
+
+               -- log error
+               SELECT @EventData = COALESCE(CONVERT(VARCHAR(MAX), EVENTDATA()), '')
+               SET @ErrorMsg = 'TrgEnforceSecurity invoked. ' + @EventData;
+               RAISERROR (@ErrorMsg, 25, 1) WITH LOG
+
+               -- Rollback unauthorized transaction    
+               ROLLBACK;
+        END"
+
+        Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Query $sql -EnableException
+}
+
+
+function ConfigureSqlAgent {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    Write-Output "Configuring SQLAgent"
+
     try {
         Set-DbaAgentServer -SqlInstance "$SqlInstance\$InstanceName" -MaximumHistoryRows 10000 -MaximumJobHistoryRows 1000 -AgentMailType DatabaseMail -DatabaseMailProfile 'Default' -SaveInSentFolder Enabled
     }
     catch {
         Write-Error "Error configuring the SQL Agent: $_"
     }
+}
 
-    #Create SQL Agent Alerts
-    try {
-        Invoke-DbaQuery -SqlInstance "$SqlInstance\$InstanceName" -Database "MSDB"  -File '.\1-Alerts.sql' -EnableException
-    }
-    catch {
-        Write-Error "Error creating the SQL Agent Alerts: $_"
-    }
-    #endregion
+function CreateSqlAgentJobs {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
 
-    #region Add Server to S1
-    Import-Module "C:\Program Files\SentryOne\19.0\Intercerve.SQLSentry.Powershell.psd1"
-    $instance = Get-Connection | Where-Object { $_.ServerName -like "$SqlInstance*" }
-    if ( $instance.WatchedBy -notlike "*PerformanceAdvisor*" ){        
-        Add-SentryOne -SqlInstance $SqlInstance -S1Host $S1Host
-    }
-    else{
-        Write-Output "$SqlInstance already in SentryOne"
+    Write-Output "Creating SQLAgent jobs"
+
+    # Create SQLAgent jobs
+    $jobs = [System.Collections.ArrayList] @()
+    $jobs.AddRange((Get-ChildItem -Path ".\SqlAgentJobs\" -Filter "All*.sql")) | Out-Null
+    $jobPrefix = (Invoke-DbaQuery -SqlInstance $SQLManagementServer -Database DBA -Query "SELECT dbo.GetJobPrefix('$SqlInstance') as JobPrefix").JobPrefix
+    if ($jobPrefix -ne '') {
+        $jobs.AddRange((Get-ChildItem -Path ".\SqlAgentJobs\" -Filter "$jobPrefix*.sql")) | Out-Null
     }
 
-     if ($InstanceName -ne 'MSSQLSERVER'){
-                $instance = Get-Connection -ConnectionType 'SqlServer' | Where-Object { $_.ServerName -like "$ServerName*" } 
-            }
-            else{
-                $instance = Get-Connection -ConnectionType 'SqlServer' | Where-Object { $_.ServerName -like "$ServerName*" -and $_.InstanceName -like "$InstanceName*" }
-            }
-            if ($instance){
-                $PerformanceAdvisor = ($instance.WatchedBy).ToString().Split().Replace(',','')
-            }
-    #region
+    $sqlCmdInstance  = "$SqlInstance\$InstanceName".Replace('\MSSQLSERVER', '')
+
+    foreach ($job in $jobs) {
+        $jobName = $($job.Name)
+        Write-Output "Creating SQLAgent job $jobName"
+        $fileName = ".\SqlAgentJobs\$jobName"
+        Invoke-Sqlcmd -ServerInstance $sqlCmdInstance -InputFile $fileName -OutputSqlErrors:$True -DisableVariables
+    }
+}
+
+function Invoke-SqlConfigure {
+    Param(
+        [Parameter(Mandatory = $True)]    [String]   $SqlInstance,
+        [String]   $InstanceName = "MSSQLSERVER"
+    )
+
+    # ConfigurePageFile -SqlInstance $SqlInstance # ignore error
+
+    # run group
+
+    Set-DbaPowerPlan -ComputerName $SqlInstance -PowerPlan 'High Performance'
+    
+    # chatgpt rewrite of AddSqlManagementToLocalAdmin.  test this, and revert back to orig version if problems.
+    Add-SqlManagementToLocalAdmin2 -SqlInstance $SqlInstance -SQLManagement $SQLManagement
+   
+    InsertIntoCmdb -SqlInstance $SqlInstance -InstanceName $InstanceName
+   
+    ConfigureSpn -SqlInstance $SqlInstance
+
+    ConfigureTraceFlags -SqlInstance $SqlInstance -InstanceName $InstanceName
+    
+    SetSpConfigureOptions -SqlInstance $SqlInstance -InstanceName $InstanceName
+  
+    Set-DbaMaxDop -SqlInstance "$SqlInstance\$InstanceName"
+
+    Set-DbaMaxMemory -SqlInstance "$SqlInstance\$InstanceName"
+
+    AddToCms -SqlInstance $SqlInstance -InstanceName $InstanceName
+
+    ConfigureTempDb -SqlInstance $SqlInstance -InstanceName $InstanceName
+
+    ConfigureModelDatabase -SqlInstance $SqlInstance -InstanceName $InstanceName
+
+    ConfigureDatabaseMail -SqlInstance $SqlInstance -InstanceName $InstanceName # adds Alerts operator and sets database mail profile
+
+    ConfigureSqlAgent -SqlInstance $SqlInstance -InstanceName $InstanceName
+    ###
+
+    # run group
+    RunSqlFiles -SqlInstance $SqlInstance -InstanceName $InstanceName # hallengren, querystore, agent alerts, whoisactive
+
+    # if this fails on second run, rename dbe_internal back to sa and rerun.  ALTER LOGIN dbe_internal WITH NAME = [sa]
+    CreateSqlAgentJobs -SqlInstance $SqlInstance -InstanceName $InstanceName
+
+    # run group
+    RenameSaAccount -SqlInstance $SqlInstance -InstanceName $InstanceName
+    DisableSaLogin -SqlInstance $SqlInstance -InstanceName $InstanceName
+    CreateLoginTrigger -SqlInstance $SqlInstance -InstanceName $InstanceName
+    Enable-DbaHideInstance -SqlInstance $SqlInstance
+
+    # turn off remote access option
+    $sql = "EXECUTE sp_configure 'show advanced options', 1;
+        RECONFIGURE;
+        EXECUTE sp_configure 'remote access', 0;
+        RECONFIGURE;"
+    Invoke-DbaQuery -SqlInstance $SqlInstance -Database master -Query $sql
 }

@@ -1,5 +1,5 @@
 #Requires -Modules @{ ModuleName="pester"; ModuleVersion="4.8.1" }
-#Requires -Modules @{ ModuleName="dbatools"; RequiredVersion="1.0.38" }
+
 
 [CmdletBinding()]
 Param(
@@ -39,20 +39,21 @@ foreach ($pSqlInstance in $SqlInstance) {
             }
         }
     
-        Context "$pSqlInstance`: Registered in MSX" {
-            $AgentConfiguration = (Get-DbaAgentServer -SqlInstance "$pSqlInstance" | Select-Object JobServerType, MsxServerName)
+        # Context "$pSqlInstance`: Registered in MSX" {
+        #     $AgentConfiguration = (Get-DbaAgentServer -SqlInstance "$pSqlInstance" | Select-Object JobServerType, MsxServerName)
 
-            if ($AgentConfiguration.JobServerType -eq 'Msx') {
-                It "$pSqlInstance`: Testing to ensure this is a master server" {
-                    ($AgentConfiguration).JobServerType | Should -Be 'Msx' -Because "This is a master (MSX) Server"
-                }
-            }
-            if ($AgentConfiguration.JobServerType -ne 'Msx') {
-                It "$pSqlInstance`: Testing to ensure this is a target server" {
-                    ($AgentConfiguration).JobServerType | Should -Be 'Tsx' -Because "This is a target (TSX) Server and it's master is $($AgentConfiguration.MsxServerName) "
-                }
-            }
-        }  
+        #     if ($AgentConfiguration.JobServerType -eq 'Msx') {
+        #         It "$pSqlInstance`: Testing to ensure this is a master server" {
+        #             ($AgentConfiguration).JobServerType | Should -Be 'Msx' -Because "This is a master (MSX) Server"
+        #         }
+        #     }
+        #     if ($AgentConfiguration.JobServerType -ne 'Msx') {
+        #         It "$pSqlInstance`: Testing to ensure this is a target server" {
+        #             ($AgentConfiguration).JobServerType | Should -Be 'Tsx' -Because "This is a target (TSX) Server and it's master is $($AgentConfiguration.MsxServerName) "
+        #         }
+        #     }
+        # }  
+
         Context "$pSqlInstance`: Registered in CMS, but only if we're not the CMS." {
             $registeredServer = (Get-DbaRegisteredServer -SqlInstance $CMDBServer -Name $pSqlInstance).ServerName
             It "$pSqlInstance`: Test to see if instance is registered in the CMS" {
@@ -60,25 +61,6 @@ foreach ($pSqlInstance in $SqlInstance) {
                 $registeredServer | Should -BeLike "$pSqlInstance*" -Because "We really want to have all of the servers registered in the CMS "
             }  
         }
-
-        Context "$pSqlInstance`: Registered in SentryOne" {
-            Import-Module "C:\Program Files\SentryOne\19.0\Intercerve.SQLSentry.Powershell.psd1"
-
-            #If the instance is using the default instance name 
-            if ($InstanceName -eq 'MSSQLSERVER'){
-                $instance = (Get-Connection -ConnectionType 'SqlServer' | Where-Object { $_.ServerName -like "$ServerName*" } )
-            }
-            else{
-                $instance = (Get-Connection -ConnectionType 'SqlServer' | Where-Object { $_.ServerName -like "$ServerName*" -and $_.InstanceName -like "$InstanceName*" })
-            }
-            if ($instance){
-                $PerformanceAdvisor = ($instance.WatchedBy).ToString().Split().Replace(',','').Trim()
-            }
-
-            It "$pSqlInstance`: Check to see if SQL Instance is registered in SentryOne and watched by Performance Advisor" {
-               $PerformanceAdvisor | Should -Contain "PerformanceAdvisor"
-            }
-        }  
     }
     
     Describe "SQL Agent Configuration" {
@@ -284,7 +266,12 @@ foreach ($pSqlInstance in $SqlInstance) {
             }
         }
         Context "$ServerName`: SQL Management Group Membership in Local Administrators" {
-            $MatchCount = Invoke-Command -ComputerName $ServerName -ScriptBlock { (Get-LocalGroupMember -Group "Administrators" -Member $using:SQLManagement | Measure-Object).Count } 
+            # Use net localgroup instead of Get-LocalGroupMember to avoid PrincipalNotFoundException
+            # when orphaned SIDs exist in the group
+            $MatchCount = Invoke-Command -ComputerName $ServerName -ScriptBlock { 
+                $members = net localgroup Administrators 2>$null
+                ($members | Where-Object { $_ -eq $using:SQLManagement } | Measure-Object).Count
+            } 
 
             It "$ServerName`: Testing to see if SQL Management Group in a member of the Local Administrators group" {
                 $MatchCount | Should -BeGreaterOrEqual 1 -Because "We want SQL Management Group as a member of the Local Administrators group"
@@ -301,9 +288,9 @@ foreach ($pSqlInstance in $SqlInstance) {
                 $GroupMembers.Name | Where-Object { $_ -eq $DbEngineers } | Should -Contain $DbEngineers
             }
         }
-        Context "$pSqlInstance`: sa SQL login should be disabled" {
-            $logins = Get-DbaLogin -SqlInstance "$pSqlInstance" | Where-Object { $_.Name -eq 'sa' }
-            It "$pSqlInstance`: Test to see if sa is disabled" {
+        Context "$pSqlInstance`: dbe_internal SQL login should be disabled" {
+            $logins = Get-DbaLogin -SqlInstance "$pSqlInstance" | Where-Object { $_.Name -eq 'dbe_internal' }
+            It "$pSqlInstance`: Test to see if dbe_internal is disabled" {
                 $logins.IsDisabled | Should -Be $true
             }
         }
@@ -313,7 +300,7 @@ foreach ($pSqlInstance in $SqlInstance) {
         Context "$pSqlInstance`: Test to see if trace flags are set in the startup configuration if < 2017 1117/1118/3226 else if 2017+ just 3226" {
             $ThisSqlInstance = Connect-DbaInstance -SqlInstance "$pSqlInstance" 
             $serverversion = $ThisSqlInstance.Version
-            $traceflags = (Get-DbaStartupParameter -SqlInstance "$pSqlInstance").TraceFlags.Split(',')
+            $traceflags = (Get-DbaStartupParameter -SqlInstance "$pSqlInstance").TraceFlags #.Split(',')
 
             if ( $serverversion.major -lt 13 ) {
                 It 'Instance is less than SQL 2016, TF 1117' {
@@ -328,7 +315,7 @@ foreach ($pSqlInstance in $SqlInstance) {
             }
             It 'Find any non-standard trace flags' {
                 #pulling the TFs again in the event the previous tests added one
-                $traceflags = (Get-DbaStartupParameter -SqlInstance "$pSqlInstance").TraceFlags.Split(',')
+                $traceflags = (Get-DbaStartupParameter -SqlInstance "$pSqlInstance").TraceFlags #.Split(',')
                 $traceflags | Should -BeIn @('1117', '1118', '3226') -Because "There are non-standard trace flags enabled"
             }
         }

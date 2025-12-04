@@ -1,4 +1,11 @@
 
+# Register-Msx -MSXServer $SQLManagementServer -TargetServer $SqlInstance -ServiceAccount $ServiceAccount -ActiveDirectoryDomain $ActiveDirectoryDomain
+
+#$MSXServer = $SQLManagementServer
+#$TargetServer = $SqlInstance
+
+Import-module sqlserver
+
 function Register-Msx{
     Param(
         [Parameter(Mandatory=$True)]   [String] $MSXServer, 

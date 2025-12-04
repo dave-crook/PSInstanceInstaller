@@ -26,7 +26,10 @@ function Install-SqlCertificate{
 
             #TODO Parameterize the ClusterTemplateName
             #$certificate = New-DbaComputerCertificate -ComputerName $ServerName -CertificateTemplate "SqlClusterCert" -KeyLength 4096 -FriendlyName $ServerName -Dns $DnsNames 
-            $certificate = New-DbaComputerCertificate -ComputerName $ServerName  -KeyLength 4096 -FriendlyName $ServerName -Dns $DnsNames -CertificateTemplate "SQLClusterCert"
+            $CaName = 'Polsinelli-Sub-02'
+            $CaServer = 'DC2-P-ICA-01.polsinelli.law'
+
+            $certificate = New-DbaComputerCertificate -ComputerName $ServerName  -KeyLength 4096 -FriendlyName $ServerName -Dns $DnsNames -CertificateTemplate "SQLClusterCert"  -CaServer $CaServer -CaName $CaName
             if (!$certificate){
                 Write-Error "Unable to request a certificate from the CA"
             }

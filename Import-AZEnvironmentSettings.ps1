@@ -4,11 +4,11 @@ $KeePassEntryGroupPath  = 'NetworkTeamPasswordVault/General/SVC Accounts/Sql Svs
 $DatabaseProfileName = 'NetworkTeamPasswordVault'
 
 #Drive Path Information
-$InstancePath = 'S:\SYSTEM'
-$DataPath = 'D:\DATA'
-$LogPath = 'L:\LOGS'
-$TempPath = 'T:\TEMPDB'
-$BackupPath = 'S:\BACKUPS'
+$InstancePath = 'C:\Program Files\Microsoft SQL Server'
+$DataPath = 'F:\data'
+$LogPath = 'G:\log'
+$TempPath = 'D:\tempDb'
+$BackupPath = 'C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\Backup'
 
 #Log file 
 $logfile = "output.log"
@@ -33,20 +33,17 @@ $AdminAccount = "$ActiveDirectoryDomain\Database Engineers"
 #Additional groups to be added to syadmins and local administrators
 $SQLManagement = "$ActiveDirectoryDomain\SQL Management"
 
-#SentryOne Host
-$S1Host = 'DCP-VSQL-20'
-
-$NumberOfPhysicalCoresPerCPU = 6
+$NumberOfPhysicalCoresPerCPU = 4
 $SmtpRelay = 'relay.polsinelli.com'
 
 #Location of installation files for each version of SQL Server. Each of these is currently the latest SP we've standardized on.
 $InstallRoot = "\\DCP-VSQL-150\INSTALLS"
 
 $InstallationSources = @{
-    2012 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2012_enterprise_edition_with_sp_3_x64_dvd_7286819"
-    2014 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2014_enterprise_edition_with_service_pack_2_x64_dvd_8962401"
-    2016 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2016_enterprise_with_service_pack_1_x64_dvd_9542382"
-    2017 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2017_enterprise_x64_dvd_11293666"
+    2012 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2012_enterprise_edition_with_service_pack_4"
+    2014 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2014_enterprise_edition_with_service_pack_3"
+    2016 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2016_enterprise_with_service_pack_2"
+    2017 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2017_enterprise"
     2019 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2019_enterprise"
     2022 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2022_enterprise"
     2025 = "$InstallRoot\SQL Server Installation Files\en_sql_server_2025_enterprise"

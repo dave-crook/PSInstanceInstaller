@@ -1,4 +1,4 @@
-Import-Module "C:\Program Files\SentryOne\19.0\Intercerve.SQLSentry.Powershell.psd1"
+Import-Module "C:\Program Files\SentryOne\20.0\Intercerve.SQLSentry.Powershell.psd1"
 
 function Add-SentryOne(   
     [Parameter(Mandatory=$True)]   [string] $SqlInstance,

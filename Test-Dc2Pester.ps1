@@ -1,7 +1,7 @@
 #Load environment specific settings
 . .\Import-Dc2EnvironmentSettings.ps1
 
-$SqlInstances = (Invoke-DbaQuery -SqlInstance 'DCP-VSQL-01' -Database 'DBA' -Query "select top 10 ServerName from [dbo].[vw_ActiveServerList]").ServerName
+$SqlInstances = (Invoke-DbaQuery -SqlInstance 'DCP-VSQL-150' -Database 'DBA' -Query "select top 10 ServerName from [dbo].[vw_ActiveServerList]").ServerName
 
 $TestNames = @()
 $TestNames += "Management Services" 

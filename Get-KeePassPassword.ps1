@@ -38,7 +38,7 @@ function Get-KeePassPassword
 {
     if ( !(Get-KeePassDatabaseConfiguration -DatabaseProfileName $DatabaseProfileName) ){
         Write-Warning 'KeePassDatabaseConfiguration not found, does it exist on your workstation?'
-        Write-Warning "To create a new KeePass DatabaseConfiguration use: New-KeePassDatabaseConfiguration -DatabaseProfileName 'NetworkTeamPasswordVault' -DatabasePath `"\\dc1-file-01\infrastructure$\KeePass\NetworkTeamPasswordVault.kdbx`" -UseMasterKey"
+        Write-Warning "To create a new KeePass DatabaseConfiguration use: New-KeePassDatabaseConfiguration -DatabaseProfileName 'NetworkTeamPasswordVault' -DatabasePath `"\\dc1-file-02\infrastructure$\KeePass\NetworkTeamPasswordVault.kdbx`" -UseMasterKey"
         Write-Warning "To get existing KeePass DatabaseConfigurations: use Get-KeePassDatabaseConfiguration"
         return $null
     }
