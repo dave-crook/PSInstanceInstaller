@@ -1,2 +1,7 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
 
-Pester_Results.html
+# PowerShell
+*.log
